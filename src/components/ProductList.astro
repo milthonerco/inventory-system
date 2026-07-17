@@ -215,6 +215,7 @@ const {
 <!-- ========================================== -->
 
 <!-- 1. Modal de Entrada de Stock Rápido -->
+<!-- 1. Modal de Entrada de Stock Rápido -->
 <div id="quickEntryModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
   <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
     <div class="flex justify-between items-center">
@@ -224,8 +225,10 @@ const {
     
     <form action="/api/inventory/transaction" method="POST" class="space-y-3">
       <input type="hidden" name="product_id" id="entryProductId" />
+      
+      <!-- ⚡ CAMBIO AQUÍ: Aseguramos que viaje con el nombre correcto para mapear el Espacio Físico -->
       <input type="hidden" name="space_id" value={currentSpaceId} />
-      <input type="hidden" name="type" value="entry" /> <!-- Siempre es "entry" (Input) -->
+      <input type="hidden" name="type" value="input" /> <!-- Cambiado de "entry" a "input" para coincidir con el backend -->
 
       <p class="text-xs text-slate-500">Aumentar la cantidad del activo: <strong id="entryTargetName" class="text-slate-800"></strong></p>
 
@@ -285,31 +288,58 @@ const {
   </div>
 </div>
 
-<!-- 3. Modal de Confirmación de Baja (Con motivo de borrado) -->
+<!-- 3. Modal de Confirmación de Baja (Con cantidad y motivo de salida) -->
 <div id="deleteProductModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
   <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
     <div class="flex justify-between items-center">
-      <h3 class="text-base font-bold text-slate-900">Dar de Baja Activo</h3>
+      <h3 class="text-base font-bold text-slate-900">Registrar Salida / Baja de Stock</h3>
       <button onclick="closeModal('deleteProductModal')" class="text-xl font-bold cursor-pointer text-slate-400 hover:text-slate-600">&times;</button>
     </div>
-    <div class="space-y-3">
+    
+    <!-- ⚡ Ahora apunta a transaction para que reste del stock y registre la bitácora -->
+    <form action="/api/inventory/transaction" method="POST" class="space-y-3">
+      <input type="hidden" name="product_id" id="deleteTargetId" />
+      <input type="hidden" name="space_id" value={currentSpaceId} />
+      <input type="hidden" name="type" value="output" /> <!-- Siempre es "output" (Salida) -->
+
       <p class="text-xs text-slate-500">
-        Estás a punto de retirar de circulación el activo <strong id="deleteTargetName" class="text-slate-800"></strong>. Este cambio no lo borrará de la base de datos, pero dejará de ser visible en este inventario y generará una baja en la bitácora histórica.
+        Registrar salida para el activo: <strong id="deleteTargetName" class="text-slate-800"></strong>. 
+        (Stock disponible: <span id="deleteCurrentStockLabel" class="font-bold text-emerald-600"></span>)
       </p>
-      <input type="hidden" id="deleteTargetId" />
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Cantidad a retirar / dar de baja:</label>
+        <input 
+          type="number" 
+          name="quantity" 
+          id="deleteQuantityInput"
+          min="1" 
+          required 
+          placeholder="Ej: 2" 
+          class="w-full border rounded-xl p-2.5 text-sm outline-none font-semibold text-slate-800" 
+        />
+      </div>
+
       <div>
         <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Motivo o Justificación de la Baja:</label>
-        <textarea id="deleteReason" required placeholder="Ej: Equipo dañado sin reparación, traslado definitivo..." class="w-full border rounded-xl p-2.5 text-xs outline-none h-20 resize-none"></textarea>
+        <input 
+          type="text" 
+          name="concept" 
+          required 
+          placeholder="Ej: Equipo dañado, traslado definitivo..." 
+          class="w-full border rounded-xl p-2.5 text-sm outline-none" 
+        />
       </div>
-      <div class="flex gap-2">
-        <button onclick="closeModal('deleteProductModal')" class="w-1/2 bg-slate-100 text-slate-600 py-2 rounded-xl text-xs font-semibold cursor-pointer hover:bg-slate-200">
+
+      <div class="flex gap-2 pt-2">
+        <button type="button" onclick="closeModal('deleteProductModal')" class="w-1/2 bg-slate-100 text-slate-600 py-2.5 rounded-xl text-xs font-semibold cursor-pointer hover:bg-slate-200">
           Cancelar
         </button>
-        <button id="btnConfirmDelete" class="w-1/2 bg-rose-600 text-white py-2 rounded-xl text-xs font-semibold cursor-pointer hover:bg-rose-700">
-          Confirmar Retiro
+        <button type="submit" class="w-1/2 bg-rose-600 text-white py-2.5 rounded-xl text-xs font-semibold cursor-pointer hover:bg-rose-700">
+          Confirmar Salida
         </button>
       </div>
-    </div>
+    </form>
   </div>
 </div>
 
@@ -390,12 +420,31 @@ const {
     }
   });
 
-  // 4. MODAL DE ELIMINACIÓN: Lógica de apertura
+  // 4. MODAL DE ELIMINACIÓN / SALIDA PARCIAL: Lógica de apertura
   window.handleDeleteProduct = function(id, name) {
+    // Buscamos la fila del producto para obtener su stock actual
+    const row = document.querySelector(`.product-row[data-id="${id}"]`);
+    // Extraemos el número del stock (ej: "4 unidades" -> 4)
+    const stockText = row?.querySelector('td:nth-child(3)')?.innerText || '0';
+    const currentStock = parseInt(stockText.replace(/\D/g, ''), 10) || 0;
+
     document.getElementById('deleteTargetId').value = id;
     document.getElementById('deleteTargetName').innerText = name;
-    document.getElementById('deleteReason').value = '';
+    document.getElementById('deleteCurrentStockLabel').innerText = `${currentStock} unidades`;
     
+    // Configuramos el límite máximo dinámicamente en el input de cantidad
+    const qtyInput = document.getElementById('deleteQuantityInput');
+    qtyInput.value = '';
+    qtyInput.setAttribute('max', currentStock);
+    
+    // Validación rápida al escribir para que no pongan más de lo existente
+    qtyInput.oninput = function() {
+      if (parseInt(this.value, 10) > currentStock) {
+        alert(`No puedes retirar más de las unidades disponibles (${currentStock}).`);
+        this.value = currentStock;
+      }
+    };
+
     document.getElementById('deleteProductModal')?.classList.remove('hidden');
   }
 
