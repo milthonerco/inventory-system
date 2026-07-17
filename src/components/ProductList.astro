@@ -1,0 +1,462 @@
+---
+// src/components/ProductList.astro
+interface Props {
+  products: any[];
+  categories: any[];
+  currentSpaceId: number | null;
+  campusName?: string;
+  zoneName?: string;
+  spaceName?: string;
+  movements?: any[]; // 👈 Agregada la definición de la prop en TypeScript
+}
+
+// 👈 Desestructuración de movements con array vacío por defecto para evitar roturas
+const { 
+  products, 
+  categories, 
+  currentSpaceId, 
+  campusName = "N/A", 
+  zoneName = "N/A", 
+  spaceName = "N/A",
+  movements = [] 
+} = Astro.props;
+---
+
+<div class="space-y-6">
+  <!-- Filtros, Exportación y Registro -->
+  <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex flex-wrap justify-between items-center gap-4">
+    <div class="flex flex-wrap items-center gap-3">
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Filtrar por Categoría:</label>
+        <select id="categoryFilter" class="border rounded-xl p-2 text-xs bg-white outline-none font-semibold text-slate-700 min-w-48">
+          <option value="all">Todas las Categorías</option>
+          {categories.map((cat) => <option value={cat.id}>{cat.name}</option>)}
+        </select>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button 
+        id="btnExportCSV"
+        class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all flex items-center gap-1.5"
+      >
+        📥 Exportar para Control Físico
+      </button>
+
+      <button onclick="openModal('productModal')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all">
+        + Registrar Activo Físico
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabla Principal de Activos -->
+  <div class="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs" id="productsTable">
+        <thead>
+          <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <th class="p-4">Activo / Especificación</th>
+            <th class="p-4">Categoría</th>
+            <th class="p-4">Stock Registrado</th>
+            <th class="p-4">Fecha de Registro</th>
+            <th class="p-4 text-center">Entrada Rápida</th>
+            <th class="p-4 text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {products.length === 0 ? (
+            <tr class="no-products-row">
+              <td colspan="6" class="p-8 text-center text-slate-400 font-medium">No hay activos registrados en este espacio físico todavía.</td>
+            </tr>
+          ) : (
+            products.map((p) => (
+              <tr 
+                class="product-row hover:bg-slate-50/60 transition-colors" 
+                data-category-id={p.category_id}
+                data-id={p.id}
+                data-name={p.name}
+                data-description={p.description || ''}
+                data-sku={p.sku || ''}
+              >
+                <td class="p-4 space-y-1">
+                  <p class="font-bold text-slate-800 text-sm product-title">{p.name}</p>
+                  <p class="text-slate-400 text-[11px] product-desc">{p.description || 'Sin descripción'}</p>
+                  <span class="inline-block font-mono text-[10px] bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                    SKU/BARRA: {p.sku || 'N/A'}
+                  </span>
+                </td>
+
+                <td class="p-4">
+                  <span class="bg-indigo-50 text-indigo-600 font-medium px-2.5 py-1 rounded-lg border border-indigo-100 product-cat-label">
+                    {p.categories?.name || 'General'}
+                  </span>
+                </td>
+
+                <td class="p-4">
+                  <span class={`font-bold px-2.5 py-1 rounded-lg ${p.stock <= 0 ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                    {p.stock} unidades
+                  </span>
+                </td>
+
+                <td class="p-4 text-slate-500 font-medium">
+                  {new Date(p.created_at).toLocaleDateString('es-ES', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </td>
+
+                <!-- Entrada Rápida de Stock (Limpia, con icono y modal) -->
+                <td class="p-4 text-center">
+                  <button 
+                    onclick={`openQuickEntryModal(${p.id}, "${p.name}")`}
+                    class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all text-xs inline-flex items-center gap-1"
+                    title="Registrar Entrada"
+                  >
+                    ➕ Registrar Entrada
+                  </button>
+                </td>
+
+                <!-- Acciones (Editar/Eliminar) -->
+                <td class="p-4 text-center">
+                  <div class="flex items-center justify-center gap-1.5">
+                    <button 
+                      onclick={`openEditProductModal(${JSON.stringify(p)})`}
+                      class="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 p-1.5 rounded-lg transition-all cursor-pointer"
+                      title="Editar Activo"
+                    >
+                      ✏️
+                    </button>
+
+                    <button 
+                      onclick={`handleDeleteProduct(${p.id}, "${p.name}")`}
+                      class="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 p-1.5 rounded-lg transition-all cursor-pointer"
+                      title="Dar de baja de inventario"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- 👈 SECCIÓN ADICIONAL: BITÁCORA DE MOVIMIENTOS ACTIVA -->
+  <!-- ==================================================== -->
+  <div class="space-y-4 pt-4">
+    <div>
+      <h3 class="text-base font-bold text-slate-800 tracking-tight">Historial Reciente de Movimientos</h3>
+      <p class="text-xs text-slate-400">Auditoría en tiempo real del flujo de entradas y salidas de este espacio físico.</p>
+    </div>
+
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <th class="p-4">Producto</th>
+              <th class="p-4">Tipo de Transacción</th>
+              <th class="p-4 text-center">Cantidad</th>
+              <th class="p-4">Fecha y Hora</th>
+              <th class="p-4">Operador Responsable</th>
+              <th class="p-4">Concepto / Motivo</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 font-medium text-slate-600">
+            {movements.length === 0 ? (
+              <tr>
+                <td colspan="6" class="p-8 text-center text-slate-400">No hay movimientos registrados para este espacio físico aún.</td>
+              </tr>
+            ) : (
+              movements.map((mov: any) => (
+                <tr class="hover:bg-slate-50/50 transition-colors">
+                  <td class="p-4 font-bold text-slate-800">{mov.product_name || 'Producto eliminado'}</td>
+                  <td class="p-4">
+                    {mov.type === 'entry' || mov.type === 'input' ? (
+                      <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-extrabold px-2 py-0.5 rounded-lg border border-emerald-100">
+                        ⬇️ Entrada
+                      </span>
+                    ) : (
+                      <span class="inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-[10px] font-extrabold px-2 py-0.5 rounded-lg border border-rose-100">
+                        ⬆️ Salida / Baja
+                      </span>
+                    )}
+                  </td>
+                  <td class="p-4 text-center font-bold text-slate-700">{mov.quantity}</td>
+                  <td class="p-4 text-slate-400">
+                    {new Date(mov.created_at).toLocaleString('es-ES', { 
+                      dateStyle: 'short', 
+                      timeStyle: 'short' 
+                    })}
+                  </td>
+                  <td class="p-4 text-slate-700">{mov.user_email || 'Sistema / Desconocido'}</td>
+                  <td class="p-4 italic text-slate-400 max-w-xs truncate" title={mov.reason || mov.concept}>
+                    {mov.reason || mov.concept || 'Sin detalles'}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODALES DE CONTROL (EDICIÓN, ELIMINACIÓN, ENTRADA) -->
+<!-- ========================================== -->
+
+<!-- 1. Modal de Entrada de Stock Rápido -->
+<div id="quickEntryModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
+    <div class="flex justify-between items-center">
+      <h3 class="text-base font-bold text-slate-900">Registrar Entrada de Stock</h3>
+      <button onclick="closeModal('quickEntryModal')" class="text-xl font-bold cursor-pointer text-slate-400 hover:text-slate-600">&times;</button>
+    </div>
+    
+    <form action="/api/inventory/transaction" method="POST" class="space-y-3">
+      <input type="hidden" name="product_id" id="entryProductId" />
+      <input type="hidden" name="space_id" value={currentSpaceId} />
+      <input type="hidden" name="type" value="entry" /> <!-- Siempre es "entry" (Input) -->
+
+      <p class="text-xs text-slate-500">Aumentar la cantidad del activo: <strong id="entryTargetName" class="text-slate-800"></strong></p>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Cantidad a ingresar:</label>
+        <input type="number" name="quantity" min="1" required placeholder="Ej: 10" class="w-full border rounded-xl p-2.5 text-sm outline-none font-semibold text-slate-800" />
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Concepto o Justificación:</label>
+        <input type="text" name="concept" required placeholder="Ej: Compra semestral, donación..." class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button type="button" onclick="closeModal('quickEntryModal')" class="w-1/2 bg-slate-100 text-slate-600 py-2.5 rounded-xl text-xs font-semibold cursor-pointer hover:bg-slate-200">
+          Cancelar
+        </button>
+        <button type="submit" class="w-1/2 bg-emerald-600 text-white py-2.5 rounded-xl text-xs font-semibold cursor-pointer hover:bg-emerald-700">
+          Guardar Entrada
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 2. Modal de Modificación Exclusiva (Nombre y Categoría) -->
+<div id="editProductModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
+    <div class="flex justify-between items-center">
+      <h3 class="text-base font-bold text-slate-900">Editar Información del Activo</h3>
+      <button onclick="closeModal('editProductModal')" class="text-xl font-bold cursor-pointer text-slate-400 hover:text-slate-600">&times;</button>
+    </div>
+    <form id="editProductForm" class="space-y-3">
+      <input type="hidden" id="editProductId" />
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Nombre del activo:</label>
+        <input type="text" id="editProductName" required class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Descripción:</label>
+        <input type="text" id="editProductDescription" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Código de barras (SKU):</label>
+        <input type="text" id="editProductSku" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Categoría:</label>
+        <select id="editProductCategoryId" required class="w-full border rounded-xl p-2.5 text-sm bg-white outline-none">
+          {categories.map((cat) => <option value={cat.id}>{cat.name}</option>)}
+        </select>
+      </div>
+      <button type="submit" class="w-full bg-amber-600 text-white py-2.5 rounded-xl text-sm font-semibold cursor-pointer hover:bg-amber-700 transition-all">
+        Guardar Cambios
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- 3. Modal de Confirmación de Baja (Con motivo de borrado) -->
+<div id="deleteProductModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
+    <div class="flex justify-between items-center">
+      <h3 class="text-base font-bold text-slate-900">Dar de Baja Activo</h3>
+      <button onclick="closeModal('deleteProductModal')" class="text-xl font-bold cursor-pointer text-slate-400 hover:text-slate-600">&times;</button>
+    </div>
+    <div class="space-y-3">
+      <p class="text-xs text-slate-500">
+        Estás a punto de retirar de circulación el activo <strong id="deleteTargetName" class="text-slate-800"></strong>. Este cambio no lo borrará de la base de datos, pero dejará de ser visible en este inventario y generará una baja en la bitácora histórica.
+      </p>
+      <input type="hidden" id="deleteTargetId" />
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Motivo o Justificación de la Baja:</label>
+        <textarea id="deleteReason" required placeholder="Ej: Equipo dañado sin reparación, traslado definitivo..." class="w-full border rounded-xl p-2.5 text-xs outline-none h-20 resize-none"></textarea>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="closeModal('deleteProductModal')" class="w-1/2 bg-slate-100 text-slate-600 py-2 rounded-xl text-xs font-semibold cursor-pointer hover:bg-slate-200">
+          Cancelar
+        </button>
+        <button id="btnConfirmDelete" class="w-1/2 bg-rose-600 text-white py-2 rounded-xl text-xs font-semibold cursor-pointer hover:bg-rose-700">
+          Confirmar Retiro
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ categories, campusName, zoneName, spaceName }}>
+  // 1. FILTRADO POR CATEGORÍA EN EL CLIENTE
+  const categoryFilter = document.getElementById('categoryFilter');
+  categoryFilter?.addEventListener('change', (e) => {
+    const selectedVal = e.target.value;
+    const rows = document.querySelectorAll('.product-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+      const catId = row.getAttribute('data-category-id');
+      if (selectedVal === 'all' || catId === selectedVal) {
+        row.classList.remove('hidden');
+        visibleCount++;
+      } else {
+        row.classList.add('hidden');
+      }
+    });
+
+    const emptyRow = document.querySelector('.no-products-row');
+    if (visibleCount === 0) {
+      if (!emptyRow) {
+        const tableBody = document.querySelector('#productsTable tbody');
+        const tr = document.createElement('tr');
+        tr.className = 'no-products-filtered-row';
+        tr.innerHTML = `<td colspan="6" class="p-8 text-center text-slate-400 font-medium">No se encontraron activos bajo esta categoría.</td>`;
+        tableBody?.appendChild(tr);
+      }
+    } else {
+      document.querySelector('.no-products-filtered-row')?.remove();
+    }
+  });
+
+  // 2. MODAL ENTRADA RÁPIDA: Lógica de apertura
+  window.openQuickEntryModal = function(id, name) {
+    document.getElementById('entryProductId').value = id;
+    document.getElementById('entryTargetName').innerText = name;
+    document.getElementById('quickEntryModal')?.classList.remove('hidden');
+  }
+
+  // 3. MODAL DE EDICIÓN: Lógica de carga
+  window.openEditProductModal = function(product) {
+    document.getElementById('editProductId').value = product.id;
+    document.getElementById('editProductName').value = product.name;
+    document.getElementById('editProductDescription').value = product.description || '';
+    document.getElementById('editProductSku').value = product.sku || '';
+    document.getElementById('editProductCategoryId').value = product.category_id;
+    
+    document.getElementById('editProductModal')?.classList.remove('hidden');
+  }
+
+  const editForm = document.getElementById('editProductForm');
+  editForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('editProductId').value;
+    const name = document.getElementById('editProductName').value;
+    const description = document.getElementById('editProductDescription').value;
+    const sku = document.getElementById('editProductSku').value;
+    const categoryId = document.getElementById('editProductCategoryId').value;
+
+    try {
+      const response = await fetch('/api/inventory/products', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name, description, sku, categoryId })
+      });
+
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        const errText = await response.text();
+        alert('Error al actualizar: ' + errText);
+      }
+    } catch (error) {
+      alert('Error de conexión.');
+    }
+  });
+
+  // 4. MODAL DE ELIMINACIÓN: Lógica de apertura
+  window.handleDeleteProduct = function(id, name) {
+    document.getElementById('deleteTargetId').value = id;
+    document.getElementById('deleteTargetName').innerText = name;
+    document.getElementById('deleteReason').value = '';
+    
+    document.getElementById('deleteProductModal')?.classList.remove('hidden');
+  }
+
+  document.getElementById('btnConfirmDelete')?.addEventListener('click', async () => {
+    const id = document.getElementById('deleteTargetId').value;
+    const reason = document.getElementById('deleteReason').value.trim();
+
+    if (!reason) {
+      alert('Por favor, ingresa el motivo del retiro del activo.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/inventory/products', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, reason })
+      });
+
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        const errText = await response.text();
+        alert('Error al dar de baja: ' + errText);
+      }
+    } catch (error) {
+      alert('Error al conectar con el servidor.');
+    }
+  });
+
+  // 5. EXPORTAR A CSV
+  document.getElementById('btnExportCSV')?.addEventListener('click', () => {
+    const rows = document.querySelectorAll('.product-row');
+    if (rows.length === 0) {
+      alert('No hay productos disponibles para exportar en este espacio.');
+      return;
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Sede,Zona,Lugar Fisico,Producto,Categoria,Codigo de Barras (SKU),Stock Actual,Verificado (Check)\r\n";
+
+    rows.forEach(row => {
+      if (row.classList.contains('hidden')) return;
+
+      const name = row.querySelector('.product-title')?.innerText.replace(/"/g, '""') || '';
+      const desc = row.querySelector('.product-desc')?.innerText.replace(/"/g, '""') || '';
+      const sku = row.getAttribute('data-sku') || 'N/A';
+      const cat = row.querySelector('.product-cat-label')?.innerText || '';
+      const stock = row.querySelector('td:nth-child(3)')?.innerText.replace(' unidades', '').trim() || '0';
+
+      const line = `"${campusName}","${zoneName}","${spaceName}","${name} (${desc})","${cat}","${sku}","${stock}","[  ]"`;
+      csvContent += line + "\r\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    const fileName = `Inventario_Fisico_${spaceName.replace(/\s+/g, '_')}.csv`;
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
+</script>

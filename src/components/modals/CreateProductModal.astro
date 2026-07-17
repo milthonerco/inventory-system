@@ -1,0 +1,31 @@
+---
+// src/components/modals/CreateProductModal.astro
+interface Props {
+  currentSpaceId: number | null;
+  categories: any[];
+}
+const { currentSpaceId, categories } = Astro.props;
+---
+<div id="productModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
+    <div class="flex justify-between items-center">
+      <h3 class="text-base font-bold text-slate-900">Registrar Activo Físico</h3>
+      <button onclick="closeModal('productModal')" class="text-xl font-bold cursor-pointer text-slate-400 hover:text-slate-600">&times;</button>
+    </div>
+    <form action="/api/inventory/products" method="POST" class="space-y-3">
+      <input type="hidden" name="space_id" value={currentSpaceId} />
+      <input type="text" name="name" required placeholder="Nombre del artículo" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      <input type="text" name="description" placeholder="Descripción" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      <input type="text" name="barcode" placeholder="Código de barras" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      <input type="number" name="stock" min="0" required placeholder="Stock Inicial" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Categoría:</label>
+        <select name="category_id" required class="w-full border rounded-xl p-2.5 text-sm bg-white outline-none">
+          <option value="" disabled selected>-- Elige una categoría --</option>
+          {categories.map((cat) => <option value={cat.id}>{cat.name}</option>)}
+        </select>
+      </div>
+      <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold cursor-pointer">Registrar Activo</button>
+    </form>
+  </div>
+</div>

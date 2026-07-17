@@ -1,0 +1,394 @@
+---
+// src/components/modals/OperatorManagerModal.astro
+interface Props {
+  operators: any[];
+  inactiveOperators?: any[];
+  allZones: any[];
+}
+const { operators, inactiveOperators = [], allZones } = Astro.props;
+---
+
+<div
+  id="operatorModal"
+  class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+>
+  <div
+    class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+  >
+    <!-- Cabecera -->
+    <div class="flex justify-between items-center">
+      <h3 class="text-lg font-bold text-slate-900 font-sans">
+        Control de Operarios
+      </h3>
+      <button
+        onclick="closeModal('operatorModal')"
+        class="text-xl font-bold cursor-pointer text-slate-400 hover:text-slate-600 transition"
+        >&times;</button
+      >
+    </div>
+
+    <!-- Menú de 3 Pestañas Superiores -->
+    <div
+      class="flex border-b border-slate-200 text-xs font-semibold uppercase tracking-wider"
+    >
+      <button
+        id="tabCreateBtn"
+        onclick="switchOpTab('create')"
+        class="flex-1 pb-2 border-b-2 border-blue-600 text-blue-600 font-bold transition"
+        >Crear</button
+      >
+      <button
+        id="tabEditBtn"
+        onclick="switchOpTab('edit')"
+        class="flex-1 pb-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition"
+        >Editar</button
+      >
+      <button
+        id="tabPermBtn"
+        onclick="switchOpTab('perm')"
+        class="flex-1 pb-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition"
+        >Zonas</button
+      >
+    </div>
+
+    <!-- PESTAÑA 1: Crear Operario -->
+    <form
+      id="formCreateOp"
+      action="/api/admin/create-operator"
+      method="POST"
+      class="space-y-3"
+    >
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1"
+          >Nombre del Operador</label
+        >
+        <input
+          type="text"
+          name="full_name"
+          required
+          placeholder="Nombre Completo"
+          class="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
+        />
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1"
+          >Correo Electrónico</label
+        >
+        <input
+          type="email"
+          name="email"
+          required
+          placeholder="correo@colegio.com"
+          class="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
+        />
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1"
+          >Contraseña Temporal</label
+        >
+        <input
+          type="password"
+          name="password"
+          required
+          minlength="6"
+          placeholder="Contraseña Inicial"
+          class="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
+        />
+      </div>
+      <button
+        type="submit"
+        class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold cursor-pointer hover:bg-blue-700 transition"
+        >Registrar Cuenta</button
+      >
+    </form>
+
+    <!-- PESTAÑA 2: Editar/Eliminar/Reactivar Operario -->
+    <div id="formEditOp" class="space-y-4 hidden">
+      <!-- SUB-FORMULARIO A: MODIFICAR ACTIVOS -->
+      <form
+        action="/api/admin/edit-operator"
+        method="POST"
+        class="space-y-3 border-b pb-4 border-slate-100"
+      >
+        <h4
+          class="text-xs font-extrabold text-slate-400 uppercase tracking-wide"
+        >
+          Editar u Opción de Baja
+        </h4>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase mb-1"
+            >Selecciona un Operador Activo:</label
+          >
+          <select
+            id="operatorSelect"
+            name="edit_user_id"
+            required
+            class="w-full border rounded-xl p-2.5 text-sm bg-white outline-none focus:border-blue-500"
+          >
+            <option value="" disabled selected
+              >-- Elige el Operario a Modificar --</option
+            >
+            {
+              operators.map((op) => (
+                <option
+                  value={op.id}
+                  data-name={op.full_name}
+                  data-email={op.email}
+                >
+                  {op.full_name} ({op.email})
+                </option>
+              ))
+            }
+          </select>
+        </div>
+
+        <!-- Campos de edición (Se activan/rellenan dinámicamente) -->
+        <div
+          id="editFields"
+          class="space-y-3 opacity-50 pointer-events-none transition-all duration-300"
+        >
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1"
+              >Nombre Completo</label
+            >
+            <input
+              type="text"
+              id="editFullName"
+              name="edit_full_name"
+              required
+              placeholder="Nombre Completo"
+              class="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1"
+              >Correo Electrónico</label
+            >
+            <input
+              type="email"
+              id="editEmail"
+              name="edit_email"
+              required
+              placeholder="correo@colegio.com"
+              class="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <!-- Nueva Contraseña Temporal (Opcional) -->
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1"
+              >Restablecer Contraseña (Opcional)</label
+            >
+            <input
+              type="password"
+              name="edit_password"
+              minlength="6"
+              placeholder="Nueva Contraseña Temporal"
+              class="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
+            />
+            <p class="text-[10px] text-slate-400 mt-1 leading-tight">
+              Si escribes una clave aquí, el operario será obligado a cambiarla
+              en su próximo inicio de sesión.
+            </p>
+          </div>
+
+          <div class="flex gap-2 pt-1">
+            <button
+              type="submit"
+              name="action"
+              value="update"
+              class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold cursor-pointer hover:bg-blue-700 transition"
+            >
+              Guardar Cambios
+            </button>
+            <button
+              type="submit"
+              name="action"
+              value="delete"
+              class="flex-1 bg-rose-50 text-rose-600 border border-rose-200 py-2.5 rounded-xl text-xs font-bold cursor-pointer hover:bg-rose-100 transition"
+              onclick="return confirm('¿Estás seguro de que deseas desactivar a este operario? Esto conservará sus registros históricos.')"
+            >
+              Dar de Baja
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <!-- SUB-FORMULARIO B: REACTIVAR INACTIVOS -->
+      <form
+        action="/api/admin/edit-operator"
+        method="POST"
+        class="space-y-3 pt-2"
+      >
+        <h4
+          class="text-xs font-extrabold text-slate-400 uppercase tracking-wide"
+        >
+          Reactivar Operadores de Baja
+        </h4>
+        {
+          inactiveOperators.length === 0 ? (
+            <p class="text-xs text-slate-400 italic">
+              No hay operarios dados de baja actualmente.
+            </p>
+          ) : (
+            <div class="space-y-3">
+              <div>
+                <select
+                  name="reactivate_user_id"
+                  required
+                  class="w-full border rounded-xl p-2.5 text-sm bg-white outline-none focus:border-green-500"
+                >
+                  <option value="" disabled selected>
+                    -- Elige un Operario a Reactivar --
+                  </option>
+                  {inactiveOperators.map((op) => (
+                    <option value={op.id}>
+                      {op.full_name} ({op.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="submit"
+                name="action"
+                value="reactivate"
+                class="w-full bg-emerald-600 text-white py-2.5 rounded-xl text-xs font-bold cursor-pointer hover:bg-emerald-700 transition"
+              >
+                Reactivar Operario Seleccionado
+              </button>
+            </div>
+          )
+        }
+      </form>
+    </div>
+
+    <!-- PESTAÑA 3: Asignación de Zonas -->
+    <form
+      id="formPermOp"
+      action="/api/admin/permissions"
+      method="POST"
+      class="space-y-3 hidden"
+    >
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1"
+          >1. Operario:</label
+        >
+        <select
+          name="user_id"
+          required
+          class="w-full border rounded-xl p-2.5 text-sm bg-white outline-none"
+        >
+          <option value="" disabled selected>-- Elige el Operario --</option>
+          {
+            operators.map((op) => (
+              <option value={op.id}>
+                {op.full_name} ({op.email})
+              </option>
+            ))
+          }
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1"
+          >2. Zona a Habilitar:</label
+        >
+        <select
+          name="zone_id"
+          required
+          class="w-full border rounded-xl p-2.5 text-sm bg-white outline-none"
+        >
+          <option value="" disabled selected
+            >-- Selecciona la Zona Estructural --</option
+          >
+          {
+            allZones.map((z) => (
+              <option value={z.id}>
+                {z.name} ({z.campuses?.name || "Sede"})
+              </option>
+            ))
+          }
+        </select>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button type="submit" name="action" value="assign" class="flex-1 bg-slate-900 text-white py-2 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-800 transition">
+          Habilitar Acceso
+        </button>
+        <button 
+          type="submit" 
+          name="action" 
+          value="revoke" 
+          class="flex-1 bg-rose-50 text-rose-600 border border-rose-200 py-2 rounded-xl text-xs font-bold cursor-pointer hover:bg-rose-100 transition"
+          onclick="return confirm('¿Estás seguro de que deseas revocar el acceso de este operario a la zona seleccionada? No podrá ver los productos de este espacio.')"
+        >
+          Revocar Acceso
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script is:inline>
+  // Cambiar entre las 3 Pestañas
+  function switchOpTab(tab) {
+    const fCreate = document.getElementById("formCreateOp");
+    const fEdit = document.getElementById("formEditOp");
+    const fPerm = document.getElementById("formPermOp");
+
+    const tCreate = document.getElementById("tabCreateBtn");
+    const tEdit = document.getElementById("tabEditBtn");
+    const tPerm = document.getElementById("tabPermBtn");
+
+    fCreate.classList.add("hidden");
+    fEdit.classList.add("hidden");
+    fPerm.classList.add("hidden");
+
+    const inactiveTabClass =
+      "flex-1 pb-2 border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition";
+    tCreate.className = inactiveTabClass;
+    tEdit.className = inactiveTabClass;
+    tPerm.className = inactiveTabClass;
+
+    const activeTabClass =
+      "flex-1 pb-2 border-b-2 border-blue-600 text-blue-600 font-bold transition";
+    if (tab === "create") {
+      fCreate.classList.remove("hidden");
+      tCreate.className = activeTabClass;
+    } else if (tab === "edit") {
+      fEdit.classList.remove("hidden");
+      tEdit.className = activeTabClass;
+    } else if (tab === "perm") {
+      fPerm.classList.remove("hidden");
+      tPerm.className = activeTabClass;
+    }
+  }
+
+  // Auto-rellenar formulario de edición
+  document.addEventListener("DOMContentLoaded", () => {
+    const operatorSelect = document.getElementById("operatorSelect");
+    const editFields = document.getElementById("editFields");
+    const editFullName = document.getElementById("editFullName");
+    const editEmail = document.getElementById("editEmail");
+
+    if (operatorSelect) {
+      operatorSelect.addEventListener("change", (e) => {
+        const selectedOption = e.target.options[e.target.selectedIndex];
+
+        if (selectedOption && selectedOption.value !== "") {
+          const name = selectedOption.getAttribute("data-name");
+          const email = selectedOption.getAttribute("data-email");
+
+          editFullName.value = name || "";
+          editEmail.value = email || "";
+
+          editFields.classList.remove("opacity-50", "pointer-events-none");
+        } else {
+          editFullName.value = "";
+          editEmail.value = "";
+          editFields.classList.add("opacity-50", "pointer-events-none");
+        }
+      });
+    }
+  });
+</script>

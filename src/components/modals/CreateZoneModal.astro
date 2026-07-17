@@ -1,0 +1,32 @@
+---
+// src/components/modals/CreateZoneModal.astro
+interface Props {
+  currentCampusId: number | null;
+  allCampuses: any[];
+}
+const { currentCampusId, allCampuses } = Astro.props;
+---
+<div id="zoneModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
+    <div class="flex justify-between items-center">
+      <h3 class="text-base font-bold text-slate-900">Registrar Nueva Zona</h3>
+      <button onclick="closeModal('zoneModal')" class="text-xl font-bold cursor-pointer text-slate-400 hover:text-slate-600">&times;</button>
+    </div>
+    <form action="/api/inventory/zones" method="POST" class="space-y-3">
+      {currentCampusId ? (
+        <input type="hidden" name="campus_id" value={currentCampusId} />
+      ) : (
+        <div>
+          <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Asignar a Sede:</label>
+          <select name="campus_id" required class="w-full border rounded-xl p-2.5 text-sm bg-white outline-none">
+            <option value="" disabled selected>-- Elige una Sede --</option>
+            {allCampuses.map((c) => <option value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
+      <input type="text" name="name" required placeholder="Nombre de la Zona" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      <input type="text" name="description" placeholder="Descripción breve" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold cursor-pointer">Guardar Zona</button>
+    </form>
+  </div>
+</div>

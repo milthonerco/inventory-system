@@ -1,0 +1,30 @@
+---
+// src/components/ActionMenu.astro
+interface Props {
+  role: string;
+}
+const { role } = Astro.props;
+---
+<div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-3 items-center justify-start">
+  <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-2 block w-full lg:w-auto">Creación de Estructuras:</span>
+  
+  <button onclick="openModal('campusModal')" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold px-4 py-2 rounded-xl transition-all cursor-pointer">
+    🏢 + Sede (Campus)
+  </button>
+  <button onclick="openModal('zoneModal')" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold px-4 py-2 rounded-xl transition-all cursor-pointer">
+    🗺️ + Zona
+  </button>
+  <button onclick="openModal('spaceModal')" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold px-4 py-2 rounded-xl transition-all cursor-pointer">
+    📍 + Lugar Físico
+  </button>
+  <button onclick="openModal('categoryModal')" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold px-4 py-2 rounded-xl transition-all cursor-pointer">
+    🏷️ + Categoría
+  </button>
+
+  {role === 'super_admin' && (
+    <div class="border-l border-slate-200 h-6 mx-2 hidden lg:block"></div>
+    <button onclick="openModal('operatorModal')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer">
+      👥 Administrar Operarios y Permisos
+    </button>
+  )}
+</div>

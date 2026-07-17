@@ -1,0 +1,46 @@
+---
+// src/components/modals/EditStructureModal.astro
+---
+<div id="editStructureModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
+    <div class="flex justify-between items-center">
+      <h3 class="text-base font-bold text-slate-900">Editar <span id="editTargetType" class="capitalize">Estructura</span></h3>
+      <button onclick="closeModal('editStructureModal')" class="text-xl font-bold cursor-pointer text-slate-400">&times;</button>
+    </div>
+    
+    <form action="/api/inventory/update-structure" method="POST" class="space-y-3">
+      <!-- Datos ocultos para el backend -->
+      <input type="hidden" name="type" id="editInputType" />
+      <input type="hidden" name="id" id="editInputId" />
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre Comercial/Identificador:</label>
+        <input type="text" name="name" id="editInputName" required class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1" id="editLabelMeta">Descripción o Dirección:</label>
+        <input type="text" name="meta" id="editInputMeta" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      </div>
+
+      <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:bg-indigo-700 cursor-pointer transition-all">
+        Guardar Cambios Guardados
+      </button>
+    </form>
+  </div>
+</div>
+
+<script is:inline>
+  function openEditModal(type, id, name, meta) {
+    document.getElementById('editTargetType').innerText = type === 'space' ? 'Lugar Físico' : type;
+    document.getElementById('editInputType').value = type;
+    document.getElementById('editInputId').value = id;
+    document.getElementById('editInputName').value = name;
+    document.getElementById('editInputMeta').value = meta;
+    
+    const labelMeta = document.getElementById('editLabelMeta');
+    labelMeta.innerText = type === 'campus' ? 'Dirección Física:' : 'Descripción:';
+    
+    document.getElementById('editStructureModal').classList.remove('hidden');
+  }
+</script>

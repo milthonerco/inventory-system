@@ -1,0 +1,16 @@
+---
+// src/components/modals/CreateCampusModal.astro
+---
+<div id="campusModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
+    <div class="flex justify-between items-center">
+      <h3 class="text-base font-bold text-slate-900">Registrar Nueva Sede</h3>
+      <button onclick="closeModal('campusModal')" class="text-xl font-bold cursor-pointer text-slate-400 hover:text-slate-600">&times;</button>
+    </div>
+    <form action="/api/inventory/campuses" method="POST" class="space-y-3">
+      <input type="text" name="name" required placeholder="Nombre de la Sede" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      <input type="text" name="address" placeholder="Dirección física (Opcional)" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+      <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold cursor-pointer">Guardar Sede</button>
+    </form>
+  </div>
+</div>

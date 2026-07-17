@@ -1,0 +1,144 @@
+---
+// src/pages/index.astro
+const accessToken = Astro.cookies.get("sb-access-token")?.value;
+if (accessToken) {
+  return Astro.redirect("/dashboard");
+}
+import "../styles/global.css";
+---
+
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Inventario Inteligente - Iniciar Sesión</title>
+  </head>
+  <body class="bg-slate-50 flex items-center justify-center min-h-screen px-4">
+    <div class="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border border-slate-100/80 space-y-6">
+      
+      <!-- Encabezado del Sistema -->
+      <div class="text-center">
+        <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight font-sans">Activos & Inventario</h1>
+        <p class="text-slate-400 mt-2 text-sm">Ingresa tus credenciales para acceder al panel administrativo</p>
+      </div>
+
+      <!-- Banner dinámico para mostrar los errores -->
+      <div id="errorBanner" class="hidden p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2.5 transition-all duration-300">
+        <span class="text-base">⚠️</span>
+        <span id="errorMessage">Ha ocurrido un problema al procesar tu solicitud.</span>
+      </div>
+
+      <!-- Formulario controlado estrictamente por JS -->
+      <form id="loginForm" class="space-y-4" onsubmit="return false;">
+        <div>
+          <label for="email" class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Correo Electrónico</label>
+          <input 
+            type="email" 
+            id="email" 
+            name="email" 
+            required 
+            placeholder="ejemplo@colegio.edu.co" 
+            class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-200"
+          />
+        </div>
+
+        <div>
+          <label for="password" class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Contraseña</label>
+          <input 
+            type="password" 
+            id="password" 
+            name="password" 
+            required 
+            placeholder="••••••••" 
+            class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-200"
+          />
+        </div>
+
+        <!-- type="button" para evitar CUALQUIER comportamiento de envío HTML por defecto -->
+        <button 
+          type="button" 
+          id="submitBtn"
+          class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer shadow-md shadow-blue-500/10 text-sm flex justify-center items-center gap-2"
+        >
+          <span>Iniciar Sesión</span>
+        </button>
+      </form>
+
+    </div>
+
+    <!-- Script procesado por Astro (Sin is:inline) para asegurar compatibilidad -->
+    <script>
+      const form = document.getElementById("loginForm") as HTMLFormElement;
+      const errorBanner = document.getElementById("errorBanner");
+      const errorMessage = document.getElementById("errorMessage");
+      const submitBtn = document.getElementById("submitBtn") as HTMLButtonElement;
+
+      async function ejecutarLogin() {
+        if (!form || !errorBanner || !errorMessage || !submitBtn) return;
+
+        // Validar que los campos nativos HTML5 no estén vacíos antes de enviar
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+
+        // Reset de estados visuales previos
+        errorBanner.classList.add("hidden");
+        submitBtn.disabled = true;
+        submitBtn.classList.add("opacity-75", "cursor-not-allowed");
+        submitBtn.innerHTML = `
+          <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span>Iniciando sesión...</span>
+        `;
+
+        const formData = new FormData(form);
+
+        try {
+          const response = await fetch("/api/auth/login", {
+            method: "POST",
+            body: formData
+          });
+
+          const result = await response.json();
+
+          if (!response.ok || !result.success) {
+            errorMessage.textContent = result.message || "Credenciales inválidas.";
+            errorBanner.classList.remove("hidden");
+            
+            submitBtn.disabled = false;
+            submitBtn.classList.remove("opacity-75", "cursor-not-allowed");
+            submitBtn.innerHTML = "<span>Iniciar Sesión</span>";
+          } else {
+            window.location.href = result.redirectUrl || "/dashboard";
+          }
+
+        } catch (err) {
+          console.error("Error en petición AJAX login:", err);
+          errorMessage.textContent = "Error de conexión con el servidor. Inténtalo más tarde.";
+          errorBanner.classList.remove("hidden");
+          
+          submitBtn.disabled = false;
+          submitBtn.classList.remove("opacity-75", "cursor-not-allowed");
+          submitBtn.innerHTML = "<span>Iniciar Sesión</span>";
+        }
+      }
+
+      // Escuchar tanto el clic en el botón como el "Enter" en el formulario
+      if (submitBtn) {
+        submitBtn.addEventListener("click", ejecutarLogin);
+      }
+
+      if (form) {
+        form.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            ejecutarLogin();
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

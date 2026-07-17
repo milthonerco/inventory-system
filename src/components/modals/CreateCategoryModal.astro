@@ -1,0 +1,313 @@
+---
+// src/components/modals/CreateCategoryModal.astro
+interface Category {
+  id: number;
+  name: string;
+  description?: string;
+}
+
+interface Props {
+  categories: Category[];
+}
+
+const { categories = [] } = Astro.props;
+---
+<div id="categoryModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl border max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+    
+    <!-- Cabecera del Modal -->
+    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+      <h3 class="text-base font-bold text-slate-900">Gestión de Categorías</h3>
+      <button onclick="closeModal('categoryModal')" class="text-xl font-bold cursor-pointer text-slate-400 hover:text-slate-600">&times;</button>
+    </div>
+
+    <!-- Pequeño Navbar de Navegación Interna -->
+    <div class="flex border-b border-slate-100 text-xs font-bold text-slate-500">
+      <button 
+        id="tab-create-cat" 
+        onclick="switchCatTab('create')" 
+        class="flex-1 py-2 text-center border-b-2 border-blue-600 text-blue-600 cursor-pointer transition-all"
+      >
+        Crear Categoría
+      </button>
+      <button 
+        id="tab-manage-cat" 
+        onclick="switchCatTab('manage')" 
+        class="flex-1 py-2 text-center border-b-2 border-transparent hover:text-slate-800 cursor-pointer transition-all"
+      >
+        Administrar Categorías ({categories.length})
+      </button>
+    </div>
+
+    <!-- Banner de Alertas (Manejo dinámico de errores) -->
+    <div id="catErrorBanner" class="hidden p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2.5">
+      <span class="text-base">⚠️</span>
+      <span id="catErrorMessage">Ocurrió un error inesperado.</span>
+    </div>
+
+    <!-- SECCIÓN 1: FORMULARIO DE CREAR / EDITAR (Controlado por JavaScript) -->
+    <div id="cat-create-section" class="space-y-4">
+      <form id="categoryForm" class="space-y-3" onsubmit="return false;">
+        <!-- ID oculto para cuando estemos editando -->
+        <input type="hidden" id="categoryId" name="id" />
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Nombre de la Categoría</label>
+          <input 
+            type="text" 
+            id="categoryName"
+            name="name" 
+            required 
+            placeholder="Ej: Equipos de Cómputo" 
+            class="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500 transition-colors" 
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Descripción (Opcional)</label>
+          <textarea 
+            id="categoryDescription"
+            name="description" 
+            placeholder="Escribe una breve descripción para esta categoría..." 
+            rows="3"
+            class="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500 transition-colors resize-none"
+          ></textarea>
+        </div>
+
+        <div class="pt-2 flex gap-2">
+          <!-- Botón Cancelar Edición (solo visible si estamos editando) -->
+          <button 
+            type="button" 
+            id="cancelEditCatBtn" 
+            onclick="resetCategoryForm()"
+            class="hidden px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl cursor-pointer transition-colors"
+          >
+            Cancelar Edición
+          </button>
+          
+          <button 
+            type="button" 
+            id="submitCategoryBtn"
+            onclick="submitCategoryApi()"
+            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-colors"
+          >
+            Guardar Categoría
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- SECCIÓN 2: PANEL DE ADMINISTRACIÓN (LISTAR, BUSCAR, EDITAR Y ELIMINAR) -->
+    <div id="cat-manage-section" class="hidden space-y-4">
+      <!-- Buscador de Categorías -->
+      <input 
+        type="text" 
+        id="searchCatInput" 
+        onkeyup="filterCategories()" 
+        placeholder="🔍 Buscar categoría por nombre..." 
+        class="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:border-blue-500"
+      />
+
+      <!-- Contenedor con Scroll de la Lista -->
+      <div class="max-h-60 overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-100" id="categoriesListContainer">
+        {categories.length === 0 ? (
+          <p class="text-xs text-slate-400 text-center py-6">No hay categorías registradas.</p>
+        ) : (
+          categories.map((cat) => (
+            <div class="category-item flex justify-between items-center p-3 hover:bg-slate-50 transition-colors" data-name={cat.name.toLowerCase()}>
+              <div class="min-w-0 pr-3">
+                <p class="text-xs font-bold text-slate-800 truncate">{cat.name}</p>
+                <p class="text-[10px] text-slate-400 truncate mt-0.5">{cat.description || 'Sin descripción'}</p>
+              </div>
+              
+              <div class="flex items-center gap-1.5 shrink-0">
+                <!-- Botón de Editar rápido -->
+                <button 
+                  type="button"
+                  onclick={`prepareEditCategory(${cat.id}, "${cat.name}", "${cat.description || ''}")`}
+                  class="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors cursor-pointer text-xs"
+                  title="Editar"
+                >
+                  ✏️
+                </button>
+                <!-- Botón de Eliminar directo -->
+                <button 
+                  type="button"
+                  onclick={`deleteCategoryApi(${cat.id})`}
+                  class="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition-colors cursor-pointer text-xs"
+                  title="Eliminar"
+                >
+                  🗑️
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script is:inline>
+  // Cambiar entre Pestañas (Tabs)
+  function switchCatTab(tab) {
+    const createTabBtn = document.getElementById('tab-create-cat');
+    const manageTabBtn = document.getElementById('tab-manage-cat');
+    const createSection = document.getElementById('cat-create-section');
+    const manageSection = document.getElementById('cat-manage-section');
+
+    // Limpiamos alertas previas al cambiar de tab
+    document.getElementById('catErrorBanner').classList.add('hidden');
+
+    if (tab === 'create') {
+      createTabBtn.className = "flex-1 py-2 text-center border-b-2 border-blue-600 text-blue-600 cursor-pointer transition-all";
+      manageTabBtn.className = "flex-1 py-2 text-center border-b-2 border-transparent hover:text-slate-800 cursor-pointer transition-all";
+      createSection.classList.remove('hidden');
+      manageSection.classList.add('hidden');
+    } else {
+      createTabBtn.className = "flex-1 py-2 text-center border-b-2 border-transparent hover:text-slate-800 cursor-pointer transition-all";
+      manageTabBtn.className = "flex-1 py-2 text-center border-b-2 border-blue-600 text-blue-600 cursor-pointer transition-all";
+      createSection.classList.add('hidden');
+      manageSection.classList.remove('hidden');
+    }
+  }
+
+  // Filtrar categorías interactivamente mediante el input de búsqueda
+  function filterCategories() {
+    const query = document.getElementById('searchCatInput').value.toLowerCase();
+    const items = document.querySelectorAll('.category-item');
+
+    items.forEach(item => {
+      const name = item.getAttribute('data-name') || '';
+      if (name.includes(query)) {
+        item.classList.remove('hidden');
+        item.classList.add('flex');
+      } else {
+        item.classList.add('hidden');
+        item.classList.remove('flex');
+      }
+    });
+  }
+
+  // Enviar el Formulario vía Fetch (POST o PUT de manera controlada)
+  async function submitCategoryApi() {
+    const banner = document.getElementById('catErrorBanner');
+    const errorMsg = document.getElementById('catErrorMessage');
+    const submitBtn = document.getElementById('submitCategoryBtn');
+    const form = document.getElementById('categoryForm');
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    banner.classList.add('hidden');
+    submitBtn.disabled = true;
+    submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+    const id = document.getElementById('categoryId').value;
+    const name = document.getElementById('categoryName').value;
+    const description = document.getElementById('categoryDescription').value;
+
+    const isEdit = id !== '';
+    const url = '/api/inventory/categories';
+    let response;
+
+    try {
+      if (isEdit) {
+        // Ejecutar PUT
+        response = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, name, description })
+        });
+      } else {
+        // Ejecutar POST (Creación)
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('description', description);
+
+        response = await fetch(url, {
+          method: 'POST',
+          body: formData
+        });
+      }
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        errorMsg.textContent = result.message || 'Error al guardar la categoría.';
+        banner.classList.remove('hidden');
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      } else {
+        // Éxito: recargamos la página para actualizar las categorías en la interfaz
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error(err);
+      errorMsg.textContent = 'Error de comunicación con el servidor.';
+      banner.classList.remove('hidden');
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
+
+  // Prepara el Formulario para Editar cargando los datos y llevándote al tab de Crear/Editar
+  function prepareEditCategory(id, name, description) {
+    document.getElementById('catErrorBanner').classList.add('hidden');
+    document.getElementById('categoryId').value = id;
+    document.getElementById('categoryName').value = name;
+    document.getElementById('categoryDescription').value = description || '';
+    
+    // Cambiamos textos y mostramos botón de cancelar
+    document.getElementById('submitCategoryBtn').textContent = 'Actualizar Categoría';
+    document.getElementById('cancelEditCatBtn').classList.remove('hidden');
+
+    // Cambiamos automáticamente de pestaña al formulario
+    switchCatTab('create');
+  }
+
+  // Resetea el formulario para que vuelva a modo de creación
+  function resetCategoryForm() {
+    document.getElementById('catErrorBanner').classList.add('hidden');
+    document.getElementById('categoryId').value = '';
+    document.getElementById('categoryName').value = '';
+    document.getElementById('categoryDescription').value = '';
+    document.getElementById('submitCategoryBtn').textContent = 'Guardar Categoría';
+    document.getElementById('cancelEditCatBtn').classList.add('hidden');
+  }
+
+  // Eliminar Categoría a través de la API (fetch DELETE)
+  async function deleteCategoryApi(id) {
+    const banner = document.getElementById('catErrorBanner');
+    const errorMsg = document.getElementById('catErrorMessage');
+    banner.classList.add('hidden');
+
+    if (confirm('¿Estás seguro de que deseas eliminar esta categoría? Si tiene activos asociados, el sistema reportará un conflicto.')) {
+      try {
+        const response = await fetch('/api/inventory/categories', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          window.location.reload();
+        } else {
+          errorMsg.textContent = result.message || 'Error al eliminar la categoría.';
+          banner.classList.remove('hidden');
+          switchCatTab('create'); // Redirigimos a la pestaña de alertas para que vea el por qué falló
+        }
+      } catch (err) {
+        console.error(err);
+        errorMsg.textContent = 'Error de red al intentar eliminar.';
+        banner.classList.remove('hidden');
+        switchCatTab('create');
+      }
+    }
+  }
+</script>

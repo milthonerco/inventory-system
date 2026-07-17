@@ -1,0 +1,307 @@
+---
+// src/pages/dashboard/index.astro
+import { supabase } from "../../lib/supabase";
+import { LocationsService } from "../../services/locations.service";
+import { ProductsService } from "../../services/products.service";
+import { AdminService } from "../../services/admin.service";
+import { MovementsService } from "../../services/movements.service";
+import ActionMenu from "../../components/ActionMenu.astro";
+import BentoGrid from "../../components/BentoGrid.astro";
+import ProductList from "../../components/ProductList.astro";
+import SuperAdminMovements from "../../components/SuperAdminMovements.astro"; // 👈 Nuevo Componente Global
+
+// Importaciones de Modales Desacoplados (SOLID - SRP)
+import OperatorManagerModal from "../../components/modals/OperatorManagerModal.astro";
+import EditStructureModal from "../../components/modals/EditStructureModal.astro";
+import CreateCampusModal from "../../components/modals/CreateCampusModal.astro";
+import CreateZoneModal from "../../components/modals/CreateZoneModal.astro";
+import CreateSpaceModal from "../../components/modals/CreateSpaceModal.astro";
+import CreateCategoryModal from "../../components/modals/CreateCategoryModal.astro";
+import CreateProductModal from "../../components/modals/CreateProductModal.astro";
+import "../../styles/global.css";
+
+// Control de Sesión y Autenticación con fallbacks seguros
+const { user, role: userRole } = Astro.locals;
+const userId = user?.id || "";
+const userEmail = user?.email || "usuario@correo.com";
+const role = userRole || "operario";
+
+const url = new URL(Astro.request.url);
+const currentCampusId = url.searchParams.get("campus") ? Number(url.searchParams.get("campus")) : null;
+const currentZoneId = url.searchParams.get("zone") ? Number(url.searchParams.get("zone")) : null;
+const currentSpaceId = url.searchParams.get("space") ? Number(url.searchParams.get("space")) : null;
+
+let campuses: any[] = [];
+let zones: any[] = [];
+let spaces: any[] = [];
+let products: any[] = [];
+let categories: any[] = [];
+let operators: any[] = [];
+let inactiveOperators: any[] = [];
+let spaceMovements: any[] = []; // Bitácora específica del espacio físico actual
+let globalMovements: any[] = []; // 👈 Bitácora global para el Super Admin
+
+// Variables auxiliares para los nombres de la exportación CSV
+let currentCampusName = "N/A";
+let currentZoneName = "N/A";
+let currentSpaceName = "N/A";
+
+// CARGA CENTRALIZADA: Datos críticos para selectores globales
+const { data: globalCampuses } = await supabase.from("campuses").select("id, name");
+const { data: globalZones } = await supabase.from("zones").select("id, name, campuses(name)");
+const allCampusesForSelect = globalCampuses || [];
+const allZonesForSelect = globalZones || [];
+const { data: globalCategories } = await supabase.from("categories").select("*").order("name", { ascending: true });
+categories = globalCategories || [];
+
+if (role === 'super_admin') {
+  operators = await AdminService.getAllOperators();
+  inactiveOperators = await AdminService.getInactiveOperators();
+
+  // 👈 CARGA GLOBAL DE MOVIMIENTOS: Solo para Super Admin cuando está en el Inicio
+  if (!currentCampusId && !currentZoneId && !currentSpaceId) {
+    const { data: movementsData, error: movError } = await supabase
+      .from("stock_movements")
+      .select(`
+        id,
+        type,
+        quantity,
+        reason,
+        created_at,
+        products (name),
+        profiles (email),
+        physical_spaces (
+          name,
+          zones (
+            name,
+            campuses (name)
+          )
+        )
+      `)
+      .order("created_at", { ascending: false });
+
+    if (!movError && movementsData) {
+      // Mapeamos de forma limpia los datos anidados para el componente
+      globalMovements = movementsData.map((m: any) => {
+        const space = m.physical_spaces;
+        const zone = space?.zones;
+        // Manejamos si las relaciones vienen como objetos o arrays de un elemento
+        const zoneData = Array.isArray(zone) ? zone[0] : zone;
+        const campusData = zoneData ? (Array.isArray(zoneData.campuses) ? zoneData.campuses[0] : zoneData.campuses) : null;
+
+        return {
+          id: m.id,
+          type: m.type,
+          quantity: m.quantity,
+          reason: m.reason,
+          created_at: m.created_at,
+          product_name: m.products?.name || "Producto Eliminado",
+          user_email: m.profiles?.email || "Sistema / Externo",
+          space_name: space?.name || "N/A",
+          zone_name: zoneData?.name || "N/A",
+          campus_name: campusData?.name || "N/A"
+        };
+      });
+    } else {
+      console.error("Error al traer movimientos globales:", movError);
+    }
+  }
+}
+
+// Lógica de navegación y renderizado condicional de la UI principal
+if (currentSpaceId) {
+  products = await ProductsService.getProductsBySpace(currentSpaceId);
+  
+  try {
+    spaceMovements = await MovementsService.getMovementsBySpace(currentSpaceId);
+  } catch (error: any) {
+    console.error("Error cargando movimientos del espacio:", error.message);
+  }
+
+  // Consulta corregida apuntando a 'physical_spaces'
+  const { data: spaceDetail } = await supabase
+    .from("physical_spaces")
+    .select(`
+      name,
+      zones (
+        name,
+        campuses (
+          name
+        )
+      )
+    `)
+    .eq("id", currentSpaceId)
+    .single();
+
+  if (spaceDetail) {
+    currentSpaceName = spaceDetail.name;
+    const zonesArray = spaceDetail.zones;
+    const zoneData: any = Array.isArray(zonesArray) ? zonesArray[0] : zonesArray;
+
+    if (zoneData) {
+      currentZoneName = zoneData.name || "N/A";
+      const campusesArray = zoneData.campuses;
+      const campusData: any = Array.isArray(campusesArray) ? campusesArray[0] : campusesArray;
+      currentCampusName = campusData?.name || "N/A";
+    }
+  }
+
+} else if (currentZoneId) {
+  spaces = await LocationsService.getSpacesByZone(currentZoneId);
+} else if (currentCampusId) {
+  zones = await LocationsService.getZonesByCampus(currentCampusId, userId, role);
+} else {
+  campuses = await LocationsService.getCampuses(userId, role);
+}
+---
+
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Gestión de Activos - Panel</title>
+  </head>
+  <body class="bg-slate-50 min-h-screen font-sans antialiased text-slate-900">
+    
+    <!-- 1. NAVBAR -->
+    <header class="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-40 px-4 lg:px-8 flex items-center justify-between shadow-xs">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">📦</span>
+        <h1 class="text-lg font-bold text-indigo-700 tracking-tight">Gestión de Activos</h1>
+      </div>
+      
+      <div class="flex items-center gap-4">
+        <div class="text-right hidden sm:block">
+          <p class="text-xs font-semibold text-slate-700">{userEmail}</p>
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{role}</p>
+        </div>
+        <form action="/api/auth/logout" method="POST">
+          <button type="submit" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer">
+            Cerrar Sesión
+          </button>
+        </form>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 lg:px-8 pt-24 pb-12 space-y-6">
+      
+      <!-- 2. MENÚ DE ACCIONES RÁPIDAS -->
+      <ActionMenu role={role} />
+
+      <!-- 3. MIGA DE PAN / BREADCRUMBS -->
+      <nav class="bg-slate-100/80 border border-slate-200/60 p-3.5 rounded-2xl text-xs font-medium flex flex-wrap gap-2 items-center text-slate-500">
+        <a href="/dashboard" class="text-blue-600 hover:underline">Inicio</a>
+        {currentCampusId && (
+          <span class="text-slate-300">/</span>
+          <a href={`?campus=${currentCampusId}`} class="text-blue-600 hover:underline">Sede Seleccionada</a>
+        )}
+        {currentZoneId && (
+          <span class="text-slate-300">/</span>
+          <a href={`?campus=${currentCampusId}&zone=${currentZoneId}`} class="text-blue-600 hover:underline">Zona</a>
+        )}
+        {currentSpaceId && (
+          <span class="text-slate-300">/</span>
+          <span class="text-slate-800 font-bold">Artículos del Espacio</span>
+        )}
+      </nav>
+
+      <!-- 4. ENTORNO DINÁMICO DE SECCIONES -->
+      {!currentCampusId && (
+        <div class="space-y-6">
+          <div class="space-y-4">
+            <h2 class="text-lg font-bold text-slate-800 tracking-tight">Sedes de la Empresa</h2>
+            <BentoGrid items={campuses} type="campus" baseUrl="?campus=" />
+          </div>
+          
+          <!-- 👈 INYECCIÓN DE LA BITÁCORA GLOBAL PARA EL SUPER ADMIN -->
+          {role === 'super_admin' && (
+            <SuperAdminMovements 
+              movements={globalMovements} 
+              campuses={allCampusesForSelect} 
+              zones={allZonesForSelect} 
+            />
+          )}
+        </div>
+      )}
+      
+      {currentCampusId && !currentZoneId && (
+        <div class="space-y-4">
+          <h2 class="text-lg font-bold text-slate-800 tracking-tight">Zonas de la Sede</h2>
+          <BentoGrid items={zones} type="zone" baseUrl={`?campus=${currentCampusId}&zone=`} />
+        </div>
+      )}
+      
+      {currentCampusId && currentZoneId && !currentSpaceId && (
+        <div class="space-y-4">
+          <h2 class="text-lg font-bold text-slate-800 tracking-tight">Lugares Físicos Disponibles</h2>
+          <BentoGrid items={spaces} type="space" baseUrl={`?campus=${currentCampusId}&zone=${currentZoneId}&space=`} />
+        </div>
+      )}
+
+      <!-- 5. TABLA DE PRODUCTOS Y ARTÍCULOS DESACOPLADA -->
+      {currentCampusId && currentZoneId && currentSpaceId && (
+        <div class="space-y-6">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900 tracking-tight">Artículos Asignados a: <span class="text-indigo-600">{currentSpaceName}</span></h2>
+            <p class="text-xs text-slate-400">Visualización de activos del espacio físico, control de stock y auditorías.</p>
+          </div>
+
+          <ProductList 
+            products={products} 
+            categories={categories} 
+            currentSpaceId={currentSpaceId}
+            campusName={currentCampusName}
+            zoneName={currentZoneName}
+            spaceName={currentSpaceName}
+            movements={spaceMovements}
+          />
+        </div>
+      )}
+    </main>
+
+    <!-- COMPONENTES DE MODALES INSTANCIADOS DEL DELEGADO SOLID -->
+    <CreateCampusModal />
+    
+    <CreateZoneModal 
+      currentCampusId={currentCampusId} 
+      allCampuses={allCampusesForSelect} 
+    />
+    
+    <CreateSpaceModal 
+      currentZoneId={currentZoneId} 
+      allZonesForSelect={allZonesForSelect} 
+    />
+    
+    <CreateCategoryModal categories={categories} />
+    
+    <CreateProductModal 
+      currentSpaceId={currentSpaceId} 
+      categories={categories} 
+    />
+
+    <OperatorManagerModal 
+      operators={operators} 
+      inactiveOperators={inactiveOperators} 
+      allZones={allZonesForSelect} 
+    />
+    
+    <EditStructureModal />
+
+    <!-- SCRIPT INLINE DE CONTROL GLOBAL -->
+    <script is:inline>
+      function openModal(id) {
+        document.getElementById(id)?.classList.remove('hidden');
+      }
+      function closeModal(id) {
+        document.getElementById(id)?.classList.add('hidden');
+      }
+
+      window.addEventListener('click', (e) => {
+        const modales = ['campusModal', 'zoneModal', 'spaceModal', 'categoryModal', 'productModal', 'operatorModal', 'editStructureModal', 'editProductModal', 'deleteProductModal'];
+        modales.forEach(id => {
+          const modal = document.getElementById(id);
+          if (e.target === modal) closeModal(id);
+        });
+      });
+    </script>
+  </body>
+</html>
