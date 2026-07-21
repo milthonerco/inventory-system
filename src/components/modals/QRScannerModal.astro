@@ -75,7 +75,6 @@
 
   let html5QrcodeScanner: Html5Qrcode | null = null;
 
-  // Apertura del modal e inicialización de la cámara
   (window as any).openQRScanner = async () => {
     document.getElementById('qrScannerModal')?.classList.remove('hidden');
     document.getElementById('scannerContainer')?.classList.remove('hidden');
@@ -84,10 +83,10 @@
     try {
       html5QrcodeScanner = new Html5Qrcode("reader");
       await html5QrcodeScanner.start(
-        { facingMode: "environment" }, // Prioriza la cámara trasera en móviles
+        { facingMode: "environment" },
         { fps: 10, qrbox: { width: 200, height: 200 } },
         onScanSuccess,
-        () => {} // Ignorar errores menores de frame
+        () => {}
       );
     } catch (err) {
       console.error("Error al abrir cámara:", err);
@@ -95,32 +94,42 @@
     }
   };
 
-  // Callback cuando detecta un código QR válido
   async function onScanSuccess(decodedText: string) {
-    // Detener la cámara una vez leído
+    console.log("🔍 Texto bruto escaneado desde el QR:", decodedText);
+
     if (html5QrcodeScanner) {
       await html5QrcodeScanner.stop();
     }
 
-    // Extraer el ID del producto si viene como URL o como ID directo
-    let productId = decodedText;
-    if (decodedText.includes('product=')) {
-      const urlParams = new URLSearchParams(decodedText.split('?')[1]);
-      productId = urlParams.get('product') || decodedText;
+    // 🛠️ SANITIZACIÓN DEL CÓDIGO QR
+    let cleanId = decodedText.trim();
+
+    // Caso A: Si el QR fue generado como "PRODUCT:uuid" o "ID:uuid"
+    if (cleanId.includes(':')) {
+      cleanId = cleanId.split(':').pop() || cleanId;
     }
 
-    fetchProductDetails(productId);
+    // Caso B: Si el QR fue generado como una URL "https://.../product?id=uuid" o "...?product=uuid"
+    if (cleanId.includes('?')) {
+      const urlParams = new URLSearchParams(cleanId.split('?')[1]);
+      cleanId = urlParams.get('product') || urlParams.get('id') || cleanId;
+    }
+
+    console.log("✅ ID limpio para consultar en Supabase:", cleanId);
+
+    fetchProductDetails(cleanId);
   }
 
-  // Consulta los detalles completos del activo a tu endpoint
   async function fetchProductDetails(productId: string) {
     try {
       const response = await fetch(`/api/inventory/products/${productId}`);
-      if (!response.ok) throw new Error('Producto no encontrado');
+      
+      if (!response.ok) {
+        throw new Error(`Estado ${response.status}: Producto no encontrado`);
+      }
 
       const data = await response.json();
 
-      // Renderizar datos en la vista de resultado
       (document.getElementById('resName') as HTMLElement).innerText = data.name;
       (document.getElementById('resSku') as HTMLElement).innerText = `SKU: ${data.sku || 'N/A'}`;
       (document.getElementById('resCategory') as HTMLElement).innerText = data.categories?.name || 'General';
@@ -129,22 +138,20 @@
       (document.getElementById('resSpace') as HTMLElement).innerText = data.spaces?.name || 'N/A';
       (document.getElementById('resStock') as HTMLElement).innerText = `${data.stock} unidades`;
 
-      // Mostrar resultados y ocultar cámara
       document.getElementById('scannerContainer')?.classList.add('hidden');
       document.getElementById('scannerResult')?.classList.remove('hidden');
 
     } catch (error) {
-      alert('⚠️ No se encontró ningún activo registrado con este código QR.');
+      console.error("Error en API:", error);
+      alert(`⚠️ No se encontró ningún activo en la base de datos con el ID: [${productId}]`);
       (window as any).resetScanner();
     }
   }
 
-  // Reiniciar el lector para escanear otra etiqueta
   (window as any).resetScanner = () => {
     (window as any).openQRScanner();
   };
 
-  // Cierre del modal y liberación de cámara
   (window as any).closeQRScanner = async () => {
     if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
       await html5QrcodeScanner.stop();
