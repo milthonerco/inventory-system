@@ -7,6 +7,7 @@ interface Props {
   campusName?: string;
   zoneName?: string;
   spaceName?: string;
+  responsibleName?: string;
   movements?: any[];
 }
 
@@ -17,6 +18,7 @@ const {
   campusName = "N/A", 
   zoneName = "N/A", 
   spaceName = "N/A",
+  responsibleName = "N/A", // 👈 1. AHORA SÍ SE EXTRAE AQUÍ
   movements = [] 
 } = Astro.props;
 ---
@@ -121,7 +123,6 @@ const {
                 <!-- Acciones (QR / Editar / Eliminar) -->
                 <td class="p-4 text-center">
                   <div class="flex items-center justify-center gap-1.5">
-                    <!-- ⚡ NUEVO: BOTÓN GENERAR CÓDIGO QR -->
                     <button 
                       onclick={`openQRModal(${p.id}, "${p.name}", "${p.sku || 'N/A'}")`}
                       class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 p-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold"
@@ -217,7 +218,7 @@ const {
 </div>
 
 <!-- ========================================== -->
-<!-- MODALES DE CONTROL (ENTRADA, EDICIÓN, SALIDA, QR) -->
+<!-- MODALES DE CONTROL -->
 <!-- ========================================== -->
 
 <!-- 1. Modal de Entrada de Stock Rápido -->
@@ -291,7 +292,7 @@ const {
   </div>
 </div>
 
-<!-- 3. Modal de Confirmación de Baja (Con cantidad y motivo de salida) -->
+<!-- 3. Modal de Confirmación de Baja -->
 <div id="deleteProductModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
   <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
     <div class="flex justify-between items-center">
@@ -345,7 +346,7 @@ const {
   </div>
 </div>
 
-<!-- ⚡ 4. NUEVO: MODAL PARA VISUALIZAR E IMPRIMIR CÓDIGO QR -->
+<!-- 4. MODAL PARA QR -->
 <div id="productQRModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
   <div class="bg-white rounded-2xl shadow-xl border max-w-sm w-full p-6 text-center space-y-4">
     <div class="flex justify-between items-center border-b pb-3 border-slate-100">
@@ -353,18 +354,13 @@ const {
       <button onclick="closeModal('productQRModal')" class="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer">&times;</button>
     </div>
 
-    <!-- Área Imprimible -->
     <div id="printableArea" class="p-4 border border-dashed border-slate-300 rounded-xl bg-slate-50 flex flex-col items-center">
       <p id="qrProductName" class="font-bold text-slate-800 text-sm truncate max-w-[220px]">Cargando...</p>
       <p id="qrProductSku" class="text-xs text-slate-500 font-mono mb-2">SKU: ---</p>
-      
-      <!-- Canvas donde se renderiza el QR -->
       <canvas id="qrCanvas" class="rounded-lg shadow-xs bg-white p-2 border border-slate-200"></canvas>
-      
       <p class="text-[10px] font-semibold text-slate-400 mt-2">Escanea para gestionar inventario</p>
     </div>
 
-    <!-- Botones de Acción -->
     <div class="flex gap-2 pt-2">
       <button 
         type="button" 
@@ -384,7 +380,8 @@ const {
   </div>
 </div>
 
-<script is:inline define:vars={{ categories, campusName, zoneName, spaceName }}>
+<!-- 👈 2. PASAMOS "responsibleName" EN "define:vars" -->
+<script is:inline define:vars={{ categories, campusName, zoneName, spaceName, responsibleName }}>
   // 1. FILTRADO POR CATEGORÍA EN EL CLIENTE
   const categoryFilter = document.getElementById('categoryFilter');
   categoryFilter?.addEventListener('change', (e) => {
@@ -416,14 +413,14 @@ const {
     }
   });
 
-  // 2. MODAL ENTRADA RÁPIDA: Lógica de apertura
+  // 2. MODAL ENTRADA RÁPIDA
   window.openQuickEntryModal = function(id, name) {
     document.getElementById('entryProductId').value = id;
     document.getElementById('entryTargetName').innerText = name;
     document.getElementById('quickEntryModal')?.classList.remove('hidden');
   }
 
-  // 3. MODAL DE EDICIÓN: Lógica de carga
+  // 3. MODAL DE EDICIÓN
   window.openEditProductModal = function(product) {
     document.getElementById('editProductId').value = product.id;
     document.getElementById('editProductName').value = product.name;
@@ -461,7 +458,7 @@ const {
     }
   });
 
-  // 4. MODAL DE ELIMINACIÓN / SALIDA PARCIAL: Lógica de apertura
+  // 4. MODAL DE ELIMINACIÓN / SALIDA
   window.handleDeleteProduct = function(id, name) {
     const row = document.querySelector(`.product-row[data-id="${id}"]`);
     const stockText = row?.querySelector('td:nth-child(3)')?.innerText || '0';
@@ -485,7 +482,7 @@ const {
     document.getElementById('deleteProductModal')?.classList.remove('hidden');
   }
 
-  // ⚡ 5. NUEVO: LÓGICA GENERACIÓN DE QR E IMPRESIÓN
+  // 5. GENERACIÓN DE QR E IMPRESIÓN
   window.openQRModal = function(id, name, sku) {
     const nameEl = document.getElementById('qrProductName');
     const skuEl = document.getElementById('qrProductSku');
@@ -494,10 +491,7 @@ const {
     if (nameEl) nameEl.innerText = name;
     if (skuEl) skuEl.innerText = `SKU: ${sku}`;
 
-    // Payload dinámico apuntando al producto específico
     const payload = `${window.location.origin}/dashboard?product=${id}`;
-
-    // Generar el QR al vuelo mediante API de QuickChart para no depender de librerías en JS Inline
     const qrImageUrl = `https://quickchart.io/qr?text=${encodeURIComponent(payload)}&size=180&margin=1`;
     
     const ctx = canvas.getContext('2d');
@@ -513,7 +507,6 @@ const {
     document.getElementById('productQRModal')?.classList.remove('hidden');
   };
 
-  // Función de impresión limpia
   window.printQRLabel = function() {
     const canvas = document.getElementById('qrCanvas');
     const qrImgData = canvas.toDataURL('image/png');
@@ -553,7 +546,7 @@ const {
     }
   };
 
-  // 6. EXPORTAR A CSV
+  // 6. EXPORTAR A CSV (INCLUYENDO RESPONSABLE)
   document.getElementById('btnExportCSV')?.addEventListener('click', () => {
     const rows = document.querySelectorAll('.product-row');
     if (rows.length === 0) {
@@ -562,7 +555,8 @@ const {
     }
 
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Sede,Zona,Lugar Fisico,Producto,Categoria,Codigo de Barras (SKU),Stock Actual,Verificado (Check)\r\n";
+    // 👈 3. AÑADIDA LA COLUMNA EN EL ENCABEZADO
+    csvContent += "Sede,Zona,Lugar Fisico,Responsable del Lugar,Producto,Categoria,Codigo de Barras (SKU),Stock Actual,Verificado (Check)\r\n";
 
     rows.forEach(row => {
       if (row.classList.contains('hidden')) return;
@@ -573,7 +567,8 @@ const {
       const cat = row.querySelector('.product-cat-label')?.innerText || '';
       const stock = row.querySelector('td:nth-child(3)')?.innerText.replace(' unidades', '').trim() || '0';
 
-      const line = `"${campusName}","${zoneName}","${spaceName}","${name} (${desc})","${cat}","${sku}","${stock}","[  ]"`;
+      // 👈 4. INYECTADO "responsibleName" EN CADA FILA
+      const line = `"${campusName}","${zoneName}","${spaceName}","${responsibleName}","${name} (${desc})","${cat}","${sku}","${stock}","[  ]"`;
       csvContent += line + "\r\n";
     });
 

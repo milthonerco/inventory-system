@@ -44,8 +44,9 @@ let globalMovements: any[] = [];
 let currentCampusName = "N/A";
 let currentZoneName = "N/A";
 let currentSpaceName = "N/A";
+let currentResponsibleName = "No asignado"; // 👈 NUEVA VARIABLE
 
-// 1. Carga paralela de selects globales (Optimización de velocidad)
+// 1. Carga paralela de selects globales
 const [{ data: globalCampuses }, { data: globalZones }, { data: globalCategories }] = await Promise.all([
   supabase.from("campuses").select("id, name"),
   supabase.from("zones").select("id, name, campuses(name)"),
@@ -111,10 +112,12 @@ if (currentSpaceId) {
     console.error("Error cargando movimientos del espacio:", error.message);
   }
 
+  // 🛠️ CONSULTA ACTUALIZADA CON "responsible_name"
   const { data: spaceDetail } = await supabase
     .from("physical_spaces")
     .select(`
       name,
+      responsible_name,
       zones (
         name,
         campuses ( name )
@@ -125,6 +128,8 @@ if (currentSpaceId) {
 
   if (spaceDetail) {
     currentSpaceName = spaceDetail.name;
+    currentResponsibleName = spaceDetail.responsible_name || "No asignado"; // 👈 CAPTURAMOS EL RESPONSABLE
+    
     const zoneData: any = Array.isArray(spaceDetail.zones) ? spaceDetail.zones[0] : spaceDetail.zones;
     if (zoneData) {
       currentZoneName = zoneData.name || "N/A";
@@ -171,7 +176,7 @@ if (currentSpaceId) {
     <main class="max-w-7xl mx-auto px-4 lg:px-8 pt-24 pb-12 space-y-6">
       <ActionMenu role={role} />
 
-      <!-- BREADCRUMBS (URLs preservadas correctamente) -->
+      <!-- BREADCRUMBS -->
       <nav class="bg-slate-100/80 border border-slate-200/60 p-3.5 rounded-2xl text-xs font-medium flex flex-wrap gap-2 items-center text-slate-500">
         <a href="/dashboard" class="text-blue-600 hover:underline">Inicio</a>
         
@@ -234,9 +239,13 @@ if (currentSpaceId) {
             <h2 class="text-xl font-bold text-slate-900 tracking-tight">
               Artículos Asignados a: <span class="text-indigo-600">{currentSpaceName}</span>
             </h2>
-            <p class="text-xs text-slate-400">Visualización de activos del espacio físico, control de stock y auditorías.</p>
+            <p class="text-xs text-slate-500 mt-1 flex items-center gap-1">
+              <span>👤 Responsable a cargo:</span>
+              <strong class="text-slate-800 font-semibold">{currentResponsibleName}</strong>
+            </p>
           </div>
 
+          <!-- 🛠️ PASAMOS EL "responsibleName" A PRODUCT LIST -->
           <ProductList 
             products={products} 
             categories={categories} 
@@ -244,6 +253,7 @@ if (currentSpaceId) {
             campusName={currentCampusName}
             zoneName={currentZoneName}
             spaceName={currentSpaceName}
+            responsibleName={currentResponsibleName}
             movements={spaceMovements}
           />
         </div>
@@ -259,7 +269,6 @@ if (currentSpaceId) {
     <OperatorManagerModal operators={operators} inactiveOperators={inactiveOperators} allZones={allZonesForSelect} />
     <EditStructureModal />
 
-    <!-- SCRIPT INLINE -->
     <script is:inline>
       function openModal(id) {
         document.getElementById(id)?.classList.remove('hidden');

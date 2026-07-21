@@ -7,18 +7,22 @@ interface Props {
 const { currentZoneId, allZonesForSelect } = Astro.props;
 ---
 <div id="spaceModal" class="hidden fixed inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-  <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
-    <div class="flex justify-between items-center">
-      <h3 class="text-base font-bold text-slate-900">Registrar Lugar Físico</h3>
+  <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4">
+    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+      <div class="flex items-center gap-2">
+        <span class="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-bold">📍</span>
+        <h3 class="text-base font-bold text-slate-900">Registrar Lugar Físico</h3>
+      </div>
       <button onclick="closeModal('spaceModal')" class="text-xl font-bold cursor-pointer text-slate-400 hover:text-slate-600">&times;</button>
     </div>
+
     <form action="/api/inventory/spaces" method="POST" class="space-y-3">
       {currentZoneId ? (
         <input type="hidden" name="zone_id" value={currentZoneId} />
       ) : (
         <div>
-          <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Zona Estructural Asignada:</label>
-          <select name="zone_id" required class="w-full border rounded-xl p-2.5 text-sm bg-white outline-none">
+          <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Zona Estructural Asignada *</label>
+          <select name="zone_id" required class="w-full border border-slate-200 rounded-xl p-2.5 text-sm bg-white outline-none focus:border-indigo-500">
             <option value="" disabled selected>-- Elige la Zona por Nombre --</option>
             {allZonesForSelect.map((z) => (
               <option value={z.id}>
@@ -28,9 +32,43 @@ const { currentZoneId, allZonesForSelect } = Astro.props;
           </select>
         </div>
       )}
-      <input type="text" name="name" required placeholder="Nombre (Ej: Aula 102)" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
-      <input type="text" name="type" required placeholder="Tipo (Ej: Aula, Oficina)" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
-      <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold cursor-pointer">Guardar Espacio</button>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Nombre del Espacio *</label>
+        <input 
+          type="text" 
+          name="name" 
+          required 
+          placeholder="Ej: Laboratorio de Sistemas 2, Aula 102" 
+          class="w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:border-indigo-500" 
+        />
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Tipo de Espacio *</label>
+        <input 
+          type="text" 
+          name="type" 
+          required 
+          placeholder="Ej: Laboratorio, Oficina, Depósito, Aula" 
+          class="w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:border-indigo-500" 
+        />
+      </div>
+
+      <!-- 👤 NUEVO CAMPO: Responsable del Espacio -->
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase mb-1">Responsable del Espacio</label>
+        <input 
+          type="text" 
+          name="responsible_name" 
+          placeholder="Ej: Ing. Carlos Pérez / Docente Encargado" 
+          class="w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:border-indigo-500" 
+        />
+      </div>
+
+      <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all shadow-xs mt-2">
+        Guardar Espacio
+      </button>
     </form>
   </div>
 </div>

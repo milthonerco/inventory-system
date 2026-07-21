@@ -10,8 +10,6 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const idStr = formData.get("id")?.toString();
     const name = formData.get("name")?.toString();
     const meta = formData.get("meta")?.toString() || "";
-    
-    // 👈 Usamos undefined en lugar de null si viene vacío
     const responsible_name = formData.get("responsible")?.toString()?.trim() || undefined;
 
     if (!type || !idStr || !name) {

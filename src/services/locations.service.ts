@@ -18,20 +18,21 @@ export const LocationsService = {
     }
   },
 
-  async createCampus(name: string, address?: string) {
+  async createCampus(name: string, address?: string, responsible?: string) {
     const { data, error } = await supabase
       .from("campuses")
-      .insert([{ name, address }])
+      .insert([{ name, address, responsible }])
       .select()
       .single();
     if (error) throw error;
     return data;
   },
 
-  async updateCampus(id: number, name: string, address?: string) {
+  // 👈 AHORA RECIBE 'responsible'
+  async updateCampus(id: number, name: string, address?: string, responsible_name?: string) {
     const { data, error } = await supabase
       .from("campuses")
-      .update({ name, address })
+      .update({ name, address, responsible_name })
       .eq("id", id)
       .select()
       .single();
@@ -59,7 +60,6 @@ export const LocationsService = {
         return data || [];
       }
 
-      // Consulta relacional directa para operarios
       const { data, error } = await supabase
         .from("user_zone_permissions")
         .select("zone_id, zones!inner(*)")
@@ -75,20 +75,21 @@ export const LocationsService = {
     }
   },
 
-  async createZone(name: string, campusId: number, description?: string) {
+  async createZone(name: string, campusId: number, description?: string, responsible?: string) {
     const { data, error } = await supabase
       .from("zones")
-      .insert([{ name, campus_id: campusId, description }])
+      .insert([{ name, campus_id: campusId, description, responsible }])
       .select()
       .single();
     if (error) throw error;
     return data;
   },
 
-  async updateZone(id: number, name: string, description?: string) {
+  // 👈 AHORA RECIBE 'responsible'
+  async updateZone(id: number, name: string, description?: string, responsible_name?: string) {
     const { data, error } = await supabase
       .from("zones")
-      .update({ name, description })
+      .update({ name, description, responsible_name })
       .eq("id", id)
       .select()
       .single();
@@ -119,26 +120,32 @@ export const LocationsService = {
     }
   },
 
-  async createSpace(name: string, zoneId: number, type: string) {
+  async createSpace(name: string, zoneId: number, type: string, responsible?: string) {
     const { data, error } = await supabase
       .from("physical_spaces")
-      .insert([{ name, zone_id: zoneId, type }])
+      .insert([{ name, zone_id: zoneId, type, responsible }])
       .select()
       .single();
     if (error) throw error;
     return data;
   },
 
-  async updateSpace(id: number, name: string, type: string) {
-    const { data, error } = await supabase
-      .from("physical_spaces")
-      .update({ name, type })
-      .eq("id", id)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
-  },
+  // 👈 AHORA RECIBE 'responsible'
+ async updateSpace(id: number, name: string, type?: string, responsible_name?: string | null) {
+  const { data, error } = await supabase
+    .from("physical_spaces")
+    .update({ 
+      name, 
+      type, 
+      responsible_name 
+    })
+    .eq("id", id)
+    .select()
+    .single();
+    
+  if (error) throw error;
+  return data;
+},
 
   async deleteSpace(id: number) {
     const { error } = await supabase.from("physical_spaces").delete().eq("id", id);

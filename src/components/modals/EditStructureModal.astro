@@ -5,7 +5,7 @@
   <div class="bg-white rounded-2xl shadow-xl border max-w-md w-full p-6 space-y-4">
     <div class="flex justify-between items-center">
       <h3 class="text-base font-bold text-slate-900">Editar <span id="editTargetType" class="capitalize">Estructura</span></h3>
-      <button onclick="closeModal('editStructureModal')" class="text-xl font-bold cursor-pointer text-slate-400">&times;</button>
+      <button onclick="closeModal('editStructureModal')" class="text-xl font-bold cursor-pointer text-slate-400 hover:text-slate-600">&times;</button>
     </div>
     
     <form action="/api/inventory/update-structure" method="POST" class="space-y-3">
@@ -15,32 +15,50 @@
 
       <div>
         <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre Comercial/Identificador:</label>
-        <input type="text" name="name" id="editInputName" required class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+        <input type="text" name="name" id="editInputName" required class="w-full border rounded-xl p-2.5 text-sm outline-none font-medium text-slate-800" />
       </div>
 
       <div>
         <label class="block text-xs font-bold text-slate-500 uppercase mb-1" id="editLabelMeta">Descripción o Dirección:</label>
-        <input type="text" name="meta" id="editInputMeta" class="w-full border rounded-xl p-2.5 text-sm outline-none" />
+        <input type="text" name="meta" id="editInputMeta" class="w-full border rounded-xl p-2.5 text-sm outline-none text-slate-700" />
+      </div>
+
+      <!-- 👈 CAMPO AÑADIDO: RESPONSABLE -->
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Responsable Cargo/Encargado:</label>
+        <input 
+          type="text" 
+          name="responsible" 
+          id="editInputResponsible" 
+          placeholder="Ej: Juan Pérez / Docente Encargado" 
+          class="w-full border rounded-xl p-2.5 text-sm outline-none text-slate-700" 
+        />
       </div>
 
       <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:bg-indigo-700 cursor-pointer transition-all">
-        Guardar Cambios Guardados
+        Guardar Cambios
       </button>
     </form>
   </div>
 </div>
 
 <script is:inline>
-  function openEditModal(type, id, name, meta) {
+  // 👈 AHORA RECIBE TAMBIÉN 'responsible'
+  function openEditModal(type, id, name, meta, responsible = '') {
     document.getElementById('editTargetType').innerText = type === 'space' ? 'Lugar Físico' : type;
     document.getElementById('editInputType').value = type;
     document.getElementById('editInputId').value = id;
     document.getElementById('editInputName').value = name;
     document.getElementById('editInputMeta').value = meta;
+    document.getElementById('editInputResponsible').value = responsible; // 👈 ASIGNA EL VALOR AL INPUT
     
     const labelMeta = document.getElementById('editLabelMeta');
     labelMeta.innerText = type === 'campus' ? 'Dirección Física:' : 'Descripción:';
     
-    document.getElementById('editStructureModal').classList.remove('hidden');
+    document.getElementById('editStructureModal')?.classList.remove('hidden');
+  }
+
+  function closeModal(modalId) {
+    document.getElementById(modalId)?.classList.add('hidden');
   }
 </script>
