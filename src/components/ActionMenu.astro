@@ -1,11 +1,13 @@
 ---
 // src/components/ActionMenu.astro
+import QRScannerModal from './modals/QRScannerModal.astro';
+
 interface Props {
   role: string;
 }
 const { role } = Astro.props;
 ---
-<div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-3 items-center justify-start">
+<div class="bg-white p-4 rounded-2xl shadow-xs border border-slate-200 flex flex-wrap gap-3 items-center justify-start">
   <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-2 block w-full lg:w-auto">Creación de Estructuras:</span>
   
   <button onclick="openModal('campusModal')" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold px-4 py-2 rounded-xl transition-all cursor-pointer">
@@ -21,10 +23,25 @@ const { role } = Astro.props;
     🏷️ + Categoría
   </button>
 
+  <div class="border-l border-slate-200 h-6 mx-1 hidden lg:block"></div>
+
+  <!-- ⚡ NUEVO BOTÓN: LECTOR DE CÓDIGOS QR -->
+  <button 
+    onclick="openQRScanner()" 
+    class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+  >
+    🔍 Escanear Activo (QR)
+  </button>
+
   {role === 'super_admin' && (
-    <div class="border-l border-slate-200 h-6 mx-2 hidden lg:block"></div>
-    <button onclick="openModal('operatorModal')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer">
-      👥 Administrar Operarios y Permisos
-    </button>
+    <>
+      <div class="border-l border-slate-200 h-6 mx-1 hidden lg:block"></div>
+      <button onclick="openModal('operatorModal')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer">
+        👥 Administrar Operarios y Permisos
+      </button>
+    </>
   )}
 </div>
+
+<!-- Modal integrado con la cámara del dispositivo -->
+<QRScannerModal />

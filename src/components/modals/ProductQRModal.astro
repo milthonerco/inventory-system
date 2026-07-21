@@ -1,0 +1,113 @@
+---
+// src/components/modals/ProductQRModal.astro
+interface Props {
+  productId?: number;
+  productName?: string;
+  sku?: string;
+}
+
+const { productId, productName, sku } = Astro.props;
+---
+
+<div id="qrModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center space-y-4">
+    
+    <div class="flex justify-between items-center border-b pb-3 border-slate-100">
+      <h3 class="font-bold text-slate-800 text-base">Etiqueta de Activo</h3>
+      <button onclick="closeModal('qrModal')" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+    </div>
+
+    <!-- Área imprimible -->
+    <div id="printableArea" class="p-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 flex flex-col items-center">
+      <p id="qrProductName" class="font-bold text-slate-800 text-sm truncate max-w-[200px]">Selecciona un producto</p>
+      <p id="qrProductSku" class="text-xs text-slate-500 font-mono mb-2">SKU: ---</p>
+      
+      <!-- Canvas donde la librería dibuja el QR -->
+      <canvas id="qrCanvas" class="rounded-lg shadow-xs bg-white p-2"></canvas>
+      
+      <p class="text-[10px] text-slate-400 mt-2">Escanea para gestionar activo</p>
+    </div>
+
+    <!-- Botón de impresión -->
+    <div class="flex gap-2 pt-2">
+      <button 
+        onclick="closeModal('qrModal')" 
+        class="w-1/2 px-4 py-2 border border-slate-200 text-slate-600 rounded-xl font-semibold text-xs hover:bg-slate-50 transition-colors"
+      >
+        Cerrar
+      </button>
+      <button 
+        onclick="printQR()" 
+        class="w-1/2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-semibold text-xs hover:bg-indigo-700 transition-colors shadow-sm"
+      >
+        🖨️ Imprimir
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  import QRCode from 'qrcode';
+
+  // Función global para generar el QR desde la lista de productos
+  (window as any).openQRModal = async (id: number, name: string, sku: string) => {
+    const nameEl = document.getElementById('qrProductName');
+    const skuEl = document.getElementById('qrProductSku');
+    const canvas = document.getElementById('qrCanvas') as HTMLCanvasElement;
+
+    if (nameEl) nameEl.textContent = name;
+    if (skuEl) skuEl.textContent = `SKU: ${sku}`;
+
+    // URL o Payload que el escáner leerá
+    const qrData = `${window.location.origin}/dashboard?product=${id}`;
+
+    try {
+      await QRCode.toCanvas(canvas, qrData, {
+        width: 180,
+        margin: 1,
+        color: {
+          dark: '#0f172a',  // slate-900
+          light: '#ffffff'
+        }
+      });
+
+      // Abre el modal usando la función global que tienes en dashboard.astro
+      if ((window as any).openModal) {
+        (window as any).openModal('qrModal');
+      }
+    } catch (err) {
+      console.error('Error generando QR:', err);
+    }
+  };
+
+  // Función para enviar a imprimir solo el QR
+  (window as any).printQR = () => {
+    const printableContent = document.getElementById('printableArea')?.innerHTML;
+    const printWindow = window.open('', '', 'height=500,width=500');
+
+    if (printWindow && printableContent) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Imprimir Etiqueta</title>
+            <style>
+              body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+              .card { text-align: center; border: 1px solid #ccc; padding: 16px; border-radius: 8px; }
+              canvas { max-width: 100%; }
+            </style>
+          </head>
+          <body>
+            <div class="card">${printableContent}</div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    }
+  };
+</script>

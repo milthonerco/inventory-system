@@ -5,3 +5,4 @@ declare namespace App {
     role: "super_admin" | "operario" | null;
   }
 }
+declare module 'qrcode';
