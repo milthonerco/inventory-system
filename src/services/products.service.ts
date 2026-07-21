@@ -2,13 +2,13 @@
 import { supabase } from "../lib/supabase";
 
 export const ProductsService = {
-  // Obtiene solo los productos que están activos (is_active: true)
   async getProductsBySpace(spaceId: number) {
     const { data, error } = await supabase
       .from("products")
       .select("*, categories(name)")
       .eq("space_id", spaceId)
-      .eq("is_active", true); // 👈 Filtro clave para el borrado lógico
+      .eq("is_active", true)
+      .order("name", { ascending: true });
 
     if (error) {
       console.error("Error al obtener productos:", error);
@@ -18,18 +18,17 @@ export const ProductsService = {
     return data || [];
   },
 
-  // Crear producto usando 'sku' en lugar de 'barcode'
   async createProduct(name: string, description: string, sku: string, stock: number, spaceId: number, categoryId: number) {
     const { data, error } = await supabase
       .from("products")
       .insert([{ 
         name, 
         description, 
-        sku, // 👈 Alineado a la base de datos
+        sku, 
         stock, 
         space_id: spaceId, 
         category_id: categoryId,
-        is_active: true // Forzamos a que inicie activo
+        is_active: true
       }])
       .select()
       .single();
@@ -38,7 +37,6 @@ export const ProductsService = {
     return data;
   },
 
-  // Modificar los atributos de un producto
   async updateProduct(id: number, name: string, description: string, sku: string, categoryId: number) {
     const { data, error } = await supabase
       .from("products")
@@ -56,11 +54,10 @@ export const ProductsService = {
     return data;
   },
 
-  // Borrado Lógico (Desactivación)
   async deleteProductLogically(id: number) {
     const { data, error } = await supabase
       .from("products")
-      .update({ is_active: false }) // 👈 Cambia el estado a false
+      .update({ is_active: false })
       .eq("id", id)
       .select()
       .single();

@@ -8,9 +8,9 @@ import { MovementsService } from "../../services/movements.service";
 import ActionMenu from "../../components/ActionMenu.astro";
 import BentoGrid from "../../components/BentoGrid.astro";
 import ProductList from "../../components/ProductList.astro";
-import SuperAdminMovements from "../../components/SuperAdminMovements.astro"; // 👈 Nuevo Componente Global
+import SuperAdminMovements from "../../components/SuperAdminMovements.astro";
 
-// Importaciones de Modales Desacoplados (SOLID - SRP)
+// Modales desacoplados
 import OperatorManagerModal from "../../components/modals/OperatorManagerModal.astro";
 import EditStructureModal from "../../components/modals/EditStructureModal.astro";
 import CreateCampusModal from "../../components/modals/CreateCampusModal.astro";
@@ -20,7 +20,7 @@ import CreateCategoryModal from "../../components/modals/CreateCategoryModal.ast
 import CreateProductModal from "../../components/modals/CreateProductModal.astro";
 import "../../styles/global.css";
 
-// Control de Sesión y Autenticación con fallbacks seguros
+// Autenticación y Contexto
 const { user, role: userRole } = Astro.locals;
 const userId = user?.id || "";
 const userEmail = user?.email || "usuario@correo.com";
@@ -38,36 +38,34 @@ let products: any[] = [];
 let categories: any[] = [];
 let operators: any[] = [];
 let inactiveOperators: any[] = [];
-let spaceMovements: any[] = []; // Bitácora específica del espacio físico actual
-let globalMovements: any[] = []; // 👈 Bitácora global para el Super Admin
+let spaceMovements: any[] = [];
+let globalMovements: any[] = [];
 
-// Variables auxiliares para los nombres de la exportación CSV
 let currentCampusName = "N/A";
 let currentZoneName = "N/A";
 let currentSpaceName = "N/A";
 
-// CARGA CENTRALIZADA: Datos críticos para selectores globales
-const { data: globalCampuses } = await supabase.from("campuses").select("id, name");
-const { data: globalZones } = await supabase.from("zones").select("id, name, campuses(name)");
+// 1. Carga paralela de selects globales (Optimización de velocidad)
+const [{ data: globalCampuses }, { data: globalZones }, { data: globalCategories }] = await Promise.all([
+  supabase.from("campuses").select("id, name"),
+  supabase.from("zones").select("id, name, campuses(name)"),
+  supabase.from("categories").select("*").order("name", { ascending: true })
+]);
+
 const allCampusesForSelect = globalCampuses || [];
 const allZonesForSelect = globalZones || [];
-const { data: globalCategories } = await supabase.from("categories").select("*").order("name", { ascending: true });
 categories = globalCategories || [];
 
+// 2. Carga para Super Admin
 if (role === 'super_admin') {
   operators = await AdminService.getAllOperators();
   inactiveOperators = await AdminService.getInactiveOperators();
 
-  // 👈 CARGA GLOBAL DE MOVIMIENTOS: Solo para Super Admin cuando está en el Inicio
   if (!currentCampusId && !currentZoneId && !currentSpaceId) {
     const { data: movementsData, error: movError } = await supabase
       .from("stock_movements")
       .select(`
-        id,
-        type,
-        quantity,
-        reason,
-        created_at,
+        id, type, quantity, reason, created_at,
         products (name),
         profiles (email),
         physical_spaces (
@@ -81,13 +79,10 @@ if (role === 'super_admin') {
       .order("created_at", { ascending: false });
 
     if (!movError && movementsData) {
-      // Mapeamos de forma limpia los datos anidados para el componente
       globalMovements = movementsData.map((m: any) => {
         const space = m.physical_spaces;
-        const zone = space?.zones;
-        // Manejamos si las relaciones vienen como objetos o arrays de un elemento
-        const zoneData = Array.isArray(zone) ? zone[0] : zone;
-        const campusData = zoneData ? (Array.isArray(zoneData.campuses) ? zoneData.campuses[0] : zoneData.campuses) : null;
+        const zoneData = Array.isArray(space?.zones) ? space?.zones[0] : space?.zones;
+        const campusData = Array.isArray(zoneData?.campuses) ? zoneData?.campuses[0] : zoneData?.campuses;
 
         return {
           id: m.id,
@@ -102,13 +97,11 @@ if (role === 'super_admin') {
           campus_name: campusData?.name || "N/A"
         };
       });
-    } else {
-      console.error("Error al traer movimientos globales:", movError);
     }
   }
 }
 
-// Lógica de navegación y renderizado condicional de la UI principal
+// 3. Control de vistas según la profundidad de navegación
 if (currentSpaceId) {
   products = await ProductsService.getProductsBySpace(currentSpaceId);
   
@@ -118,16 +111,13 @@ if (currentSpaceId) {
     console.error("Error cargando movimientos del espacio:", error.message);
   }
 
-  // Consulta corregida apuntando a 'physical_spaces'
   const { data: spaceDetail } = await supabase
     .from("physical_spaces")
     .select(`
       name,
       zones (
         name,
-        campuses (
-          name
-        )
+        campuses ( name )
       )
     `)
     .eq("id", currentSpaceId)
@@ -135,18 +125,14 @@ if (currentSpaceId) {
 
   if (spaceDetail) {
     currentSpaceName = spaceDetail.name;
-    const zonesArray = spaceDetail.zones;
-    const zoneData: any = Array.isArray(zonesArray) ? zonesArray[0] : zonesArray;
-
+    const zoneData: any = Array.isArray(spaceDetail.zones) ? spaceDetail.zones[0] : spaceDetail.zones;
     if (zoneData) {
       currentZoneName = zoneData.name || "N/A";
-      const campusesArray = zoneData.campuses;
-      const campusData: any = Array.isArray(campusesArray) ? campusesArray[0] : campusesArray;
+      const campusData: any = Array.isArray(zoneData.campuses) ? zoneData.campuses[0] : zoneData.campuses;
       currentCampusName = campusData?.name || "N/A";
     }
   }
-
-} else if (currentZoneId) {
+} else if (currentZoneId && currentCampusId) {
   spaces = await LocationsService.getSpacesByZone(currentZoneId);
 } else if (currentCampusId) {
   zones = await LocationsService.getZonesByCampus(currentCampusId, userId, role);
@@ -162,7 +148,7 @@ if (currentSpaceId) {
   </head>
   <body class="bg-slate-50 min-h-screen font-sans antialiased text-slate-900">
     
-    <!-- 1. NAVBAR -->
+    <!-- NAVBAR -->
     <header class="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-40 px-4 lg:px-8 flex items-center justify-between shadow-xs">
       <div class="flex items-center gap-2">
         <span class="text-xl">📦</span>
@@ -183,28 +169,33 @@ if (currentSpaceId) {
     </header>
 
     <main class="max-w-7xl mx-auto px-4 lg:px-8 pt-24 pb-12 space-y-6">
-      
-      <!-- 2. MENÚ DE ACCIONES RÁPIDAS -->
       <ActionMenu role={role} />
 
-      <!-- 3. MIGA DE PAN / BREADCRUMBS -->
+      <!-- BREADCRUMBS (URLs preservadas correctamente) -->
       <nav class="bg-slate-100/80 border border-slate-200/60 p-3.5 rounded-2xl text-xs font-medium flex flex-wrap gap-2 items-center text-slate-500">
         <a href="/dashboard" class="text-blue-600 hover:underline">Inicio</a>
+        
         {currentCampusId && (
           <span class="text-slate-300">/</span>
-          <a href={`?campus=${currentCampusId}`} class="text-blue-600 hover:underline">Sede Seleccionada</a>
+          <a href={`/dashboard?campus=${currentCampusId}`} class="text-blue-600 hover:underline">
+            {currentCampusName !== "N/A" ? currentCampusName : "Sede Seleccionada"}
+          </a>
         )}
-        {currentZoneId && (
+        
+        {currentCampusId && currentZoneId && (
           <span class="text-slate-300">/</span>
-          <a href={`?campus=${currentCampusId}&zone=${currentZoneId}`} class="text-blue-600 hover:underline">Zona</a>
+          <a href={`/dashboard?campus=${currentCampusId}&zone=${currentZoneId}`} class="text-blue-600 hover:underline">
+            {currentZoneName !== "N/A" ? currentZoneName : "Zona"}
+          </a>
         )}
+        
         {currentSpaceId && (
           <span class="text-slate-300">/</span>
-          <span class="text-slate-800 font-bold">Artículos del Espacio</span>
+          <span class="text-slate-800 font-bold">{currentSpaceName}</span>
         )}
       </nav>
 
-      <!-- 4. ENTORNO DINÁMICO DE SECCIONES -->
+      <!-- CONTENIDO DINÁMICO DE NAVEGACIÓN -->
       {!currentCampusId && (
         <div class="space-y-6">
           <div class="space-y-4">
@@ -212,7 +203,6 @@ if (currentSpaceId) {
             <BentoGrid items={campuses} type="campus" baseUrl="?campus=" />
           </div>
           
-          <!-- 👈 INYECCIÓN DE LA BITÁCORA GLOBAL PARA EL SUPER ADMIN -->
           {role === 'super_admin' && (
             <SuperAdminMovements 
               movements={globalMovements} 
@@ -237,11 +227,13 @@ if (currentSpaceId) {
         </div>
       )}
 
-      <!-- 5. TABLA DE PRODUCTOS Y ARTÍCULOS DESACOPLADA -->
+      <!-- VISTA DE PRODUCTOS -->
       {currentCampusId && currentZoneId && currentSpaceId && (
         <div class="space-y-6">
           <div>
-            <h2 class="text-xl font-bold text-slate-900 tracking-tight">Artículos Asignados a: <span class="text-indigo-600">{currentSpaceName}</span></h2>
+            <h2 class="text-xl font-bold text-slate-900 tracking-tight">
+              Artículos Asignados a: <span class="text-indigo-600">{currentSpaceName}</span>
+            </h2>
             <p class="text-xs text-slate-400">Visualización de activos del espacio físico, control de stock y auditorías.</p>
           </div>
 
@@ -258,35 +250,16 @@ if (currentSpaceId) {
       )}
     </main>
 
-    <!-- COMPONENTES DE MODALES INSTANCIADOS DEL DELEGADO SOLID -->
+    <!-- MODALES INSTANCIADOS -->
     <CreateCampusModal />
-    
-    <CreateZoneModal 
-      currentCampusId={currentCampusId} 
-      allCampuses={allCampusesForSelect} 
-    />
-    
-    <CreateSpaceModal 
-      currentZoneId={currentZoneId} 
-      allZonesForSelect={allZonesForSelect} 
-    />
-    
+    <CreateZoneModal currentCampusId={currentCampusId} allCampuses={allCampusesForSelect} />
+    <CreateSpaceModal currentZoneId={currentZoneId} allZonesForSelect={allZonesForSelect} />
     <CreateCategoryModal categories={categories} />
-    
-    <CreateProductModal 
-      currentSpaceId={currentSpaceId} 
-      categories={categories} 
-    />
-
-    <OperatorManagerModal 
-      operators={operators} 
-      inactiveOperators={inactiveOperators} 
-      allZones={allZonesForSelect} 
-    />
-    
+    <CreateProductModal currentSpaceId={currentSpaceId} categories={categories} />
+    <OperatorManagerModal operators={operators} inactiveOperators={inactiveOperators} allZones={allZonesForSelect} />
     <EditStructureModal />
 
-    <!-- SCRIPT INLINE DE CONTROL GLOBAL -->
+    <!-- SCRIPT INLINE -->
     <script is:inline>
       function openModal(id) {
         document.getElementById(id)?.classList.remove('hidden');

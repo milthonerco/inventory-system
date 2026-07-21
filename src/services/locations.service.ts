@@ -2,7 +2,7 @@
 import { supabase } from "../lib/supabase";
 
 export const LocationsService = {
-  // --- CAMPUSES (SEDES) ---
+  // --- CAMPUSES ---
   async getCampuses(userId: string, role: string) {
     try {
       const { data, error } = await supabase
@@ -13,7 +13,7 @@ export const LocationsService = {
       if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error("Error crítico en getCampuses:", error);
+      console.error("Error en getCampuses:", error);
       return [];
     }
   },
@@ -32,7 +32,9 @@ export const LocationsService = {
     const { data, error } = await supabase
       .from("campuses")
       .update({ name, address })
-      .eq("id", id);
+      .eq("id", id)
+      .select()
+      .single();
     if (error) throw error;
     return data;
   },
@@ -43,7 +45,7 @@ export const LocationsService = {
     return true;
   },
 
-  // --- ZONES (ZONAS) ---
+  // --- ZONES ---
   async getZonesByCampus(campusId: number, userId: string, role: string) {
     try {
       if (role === 'super_admin') {
@@ -57,32 +59,18 @@ export const LocationsService = {
         return data || [];
       }
 
-      // ⬇️ CORREGIDO AQUÍ: user_zone_permissions (singular)
-      const { data: allowedPermissions, error: permError } = await supabase
+      // Consulta relacional directa para operarios
+      const { data, error } = await supabase
         .from("user_zone_permissions")
-        .select("zone_id")
-        .eq("user_id", userId);
+        .select("zone_id, zones!inner(*)")
+        .eq("user_id", userId)
+        .eq("zones.campus_id", campusId);
 
-      if (permError) throw permError;
-
-      if (!allowedPermissions || allowedPermissions.length === 0) {
-        return [];
-      }
-
-      const allowedZoneIds = allowedPermissions.map(p => p.zone_id);
-
-      const { data: dataZones, error: zonesError } = await supabase
-        .from("zones")
-        .select("*")
-        .eq("campus_id", campusId)
-        .in("id", allowedZoneIds)
-        .order("name", { ascending: true });
-
-      if (zonesError) throw zonesError;
-      return dataZones || [];
+      if (error) throw error;
+      return data ? data.map((p: any) => p.zones) : [];
 
     } catch (error) {
-      console.error("Error filtrando zones por permisos de usuario:", error);
+      console.error("Error obteniendo zonas por permisos:", error);
       return [];
     }
   },
@@ -101,7 +89,9 @@ export const LocationsService = {
     const { data, error } = await supabase
       .from("zones")
       .update({ name, description })
-      .eq("id", id);
+      .eq("id", id)
+      .select()
+      .single();
     if (error) throw error;
     return data;
   },
@@ -112,29 +102,26 @@ export const LocationsService = {
     return true;
   },
 
-  // --- PHYSICAL SPACES (LUGARES FÍSICOS - CORREGIDO) ---
+  // --- PHYSICAL SPACES ---
   async getSpacesByZone(zoneId: number) {
     try {
       const { data, error } = await supabase
-        .from("physical_spaces") // 👈 ¡Corregido al nombre real de tu tabla!
+        .from("physical_spaces")
         .select("*")
         .eq("zone_id", zoneId)
         .order("name", { ascending: true });
 
-      if (error) {
-        console.error("Error spaces:", error);
-        return [];
-      }
+      if (error) throw error;
       return data || [];
     } catch (err) {
-      console.error("Error inesperado en getSpacesByZone:", err);
+      console.error("Error en getSpacesByZone:", err);
       return [];
     }
   },
 
   async createSpace(name: string, zoneId: number, type: string) {
     const { data, error } = await supabase
-      .from("physical_spaces") // 👈 Corregido
+      .from("physical_spaces")
       .insert([{ name, zone_id: zoneId, type }])
       .select()
       .single();
@@ -144,15 +131,17 @@ export const LocationsService = {
 
   async updateSpace(id: number, name: string, type: string) {
     const { data, error } = await supabase
-      .from("physical_spaces") // 👈 Corregido
+      .from("physical_spaces")
       .update({ name, type })
-      .eq("id", id);
+      .eq("id", id)
+      .select()
+      .single();
     if (error) throw error;
     return data;
   },
 
   async deleteSpace(id: number) {
-    const { error } = await supabase.from("physical_spaces").delete().eq("id", id); // 👈 Corregido
+    const { error } = await supabase.from("physical_spaces").delete().eq("id", id);
     if (error) throw error;
     return true;
   }

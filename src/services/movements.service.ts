@@ -1,10 +1,26 @@
 // src/services/movements.service.ts
 import { supabase } from "../lib/supabase";
 
+export interface StockMovement {
+  id: number;
+  type: 'input' | 'output' | 'adjustment';
+  quantity: number;
+  reason: string;
+  created_at: string;
+  product_name: string;
+  user_email: string;
+  space_id?: number | null;
+  space_name: string;
+  zone_id?: number | null;
+  zone_name: string;
+  campus_id?: number | null;
+  campus_name: string;
+}
+
 export const MovementsService = {
   
-  // 1. Obtener TODO el historial con relaciones para el SUPER ADMIN (incluye mapeo de campus, zona y espacio)
-  async getAllMovementsForAdmin(): Promise<any[]> {
+  // 1. Carga optimizada de la bitácora global (JOIN directo con profiles)
+  async getAllMovementsForAdmin(): Promise<StockMovement[]> {
     try {
       const { data, error } = await supabase
         .from("stock_movements")
@@ -14,8 +30,8 @@ export const MovementsService = {
           quantity,
           reason,
           created_at,
-          user_id,
           products ( id, name, sku ),
+          profiles ( email ),
           physical_spaces (
             id,
             name,
@@ -33,17 +49,12 @@ export const MovementsService = {
 
       if (error) throw error;
 
-      // Traer perfiles para acoplar los correos/usuarios que hicieron los cambios
-      const { data: profiles } = await supabase.from("profiles").select("id, email, role");
-      const profilesMap = profiles || [];
-
-      return (data || []).map(mov => {
-        const space = mov.physical_spaces as any;
+      return (data || []).map((mov: any) => {
+        const space = mov.physical_spaces;
         const zone = Array.isArray(space?.zones) ? space.zones[0] : space?.zones;
         const campus = Array.isArray(zone?.campuses) ? zone.campuses[0] : zone?.campuses;
-
-        // Corrección de Tipado para productos que vienen como Array u Objeto único
-        const productData: any = Array.isArray(mov.products) ? mov.products[0] : mov.products;
+        const productData = Array.isArray(mov.products) ? mov.products[0] : mov.products;
+        const profileData = Array.isArray(mov.profiles) ? mov.profiles[0] : mov.profiles;
 
         return {
           id: mov.id,
@@ -58,7 +69,7 @@ export const MovementsService = {
           zone_name: zone?.name || "N/A",
           campus_id: campus?.id || null,
           campus_name: campus?.name || "N/A",
-          user_email: profilesMap.find(p => p.id === mov.user_id)?.email || "Sistema/Desconocido"
+          user_email: profileData?.email || "Sistema / Externo"
         };
       });
     } catch (error: any) {
@@ -67,31 +78,28 @@ export const MovementsService = {
     }
   },
 
-  // 2. Obtener historial filtrado por un espacio físico específico (Para el Operario / Vista de Espacio)
-  async getMovementsBySpace(spaceId: number): Promise<any[]> {
+  // 2. Obtener historial por espacio físico (JOIN optimizado)
+  async getMovementsBySpace(spaceId: number): Promise<Partial<StockMovement>[]> {
     try {
       const { data, error } = await supabase
-        .from("stock_movements") // 👈 Corregido el nombre de la tabla
+        .from("stock_movements")
         .select(`
           id,
           type,
           quantity,
           reason,
           created_at,
-          user_id,
-          products ( id, name )
+          products ( id, name ),
+          profiles ( email )
         `)
         .eq("physical_space_id", spaceId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      const { data: profiles } = await supabase.from("profiles").select("id, email");
-      const profilesMap = profiles || [];
-
-      return (data || []).map(mov => {
-        // Corrección de Tipado para productos que vienen como Array u Objeto único
-        const productData: any = Array.isArray(mov.products) ? mov.products[0] : mov.products;
+      return (data || []).map((mov: any) => {
+        const productData = Array.isArray(mov.products) ? mov.products[0] : mov.products;
+        const profileData = Array.isArray(mov.profiles) ? mov.profiles[0] : mov.profiles;
 
         return {
           id: mov.id,
@@ -100,7 +108,7 @@ export const MovementsService = {
           quantity: mov.quantity,
           reason: mov.reason,
           created_at: mov.created_at,
-          user_email: profilesMap.find(p => p.id === mov.user_id)?.email || "Sistema"
+          user_email: profileData?.email || "Sistema"
         };
       });
     } catch (error: any) {
@@ -109,7 +117,7 @@ export const MovementsService = {
     }
   },
 
-  // 3. Registrar movimientos comunes (Entradas, salidas, ajustes de stock)
+  // 3. Registrar movimiento estándar
   async registerMovement(
     productId: number, 
     userId: string, 
@@ -128,13 +136,14 @@ export const MovementsService = {
         quantity, 
         reason: reason || "Movimiento de stock estándar" 
       }])
-      .select();
+      .select()
+      .single();
 
     if (error) throw error;
     return data;
   },
 
-  // 4. Registrar acciones de auditoría especiales (Creaciones o Eliminaciones directas de producto)
+  // 4. Auditorías para creación / eliminación
   async logAuditableAction(
     productId: number,
     userId: string,
@@ -158,12 +167,10 @@ export const MovementsService = {
         quantity,
         reason: formattedReason
       }])
-      .select();
+      .select()
+      .single();
 
-    if (error) {
-      console.error(`Error al registrar auditoría [${type}]:`, error.message);
-      throw error;
-    }
+    if (error) throw error;
     return data;
   }
 };
