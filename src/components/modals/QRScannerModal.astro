@@ -130,14 +130,22 @@
 
       const data = await response.json();
 
-      (document.getElementById('resName') as HTMLElement).innerText = data.name;
+      // Mapeo adaptado a la tabla "physical_spaces"
+      (document.getElementById('resName') as HTMLElement).innerText = data.name || 'Sin Nombre';
       (document.getElementById('resSku') as HTMLElement).innerText = `SKU: ${data.sku || 'N/A'}`;
       (document.getElementById('resCategory') as HTMLElement).innerText = data.categories?.name || 'General';
-      (document.getElementById('resCampus') as HTMLElement).innerText = data.spaces?.zones?.campuses?.name || 'N/A';
-      (document.getElementById('resZone') as HTMLElement).innerText = data.spaces?.zones?.name || 'N/A';
-      (document.getElementById('resSpace') as HTMLElement).innerText = data.spaces?.name || 'N/A';
-      (document.getElementById('resStock') as HTMLElement).innerText = `${data.stock} unidades`;
+      
+      // Jerarquía física real
+      const space = data.physical_spaces;
+      const zone = space?.zones;
+      const campus = zone?.campuses;
 
+      (document.getElementById('resCampus') as HTMLElement).innerText = campus?.name || 'No asignado';
+      (document.getElementById('resZone') as HTMLElement).innerText = zone?.name || 'No asignada';
+      (document.getElementById('resSpace') as HTMLElement).innerText = space ? `${space.name} (${space.type || 'Espacio'})` : 'No asignado';
+      (document.getElementById('resStock') as HTMLElement).innerText = `${data.stock ?? 0} unidades`;
+
+      // Ocultar cámara y mostrar resultados
       document.getElementById('scannerContainer')?.classList.add('hidden');
       document.getElementById('scannerResult')?.classList.remove('hidden');
 

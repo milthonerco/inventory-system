@@ -1,14 +1,27 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '../../../../lib/supabase'; // Ajusta según la ruta de tu cliente Supabase
+import { supabase } from '../../../../lib/supabase'; // Ajusta la ruta a tu cliente de Supabase
 
 export const GET: APIRoute = async ({ params }) => {
   const { id } = params;
 
   if (!id) {
-    return new Response('ID de producto requerido', { status: 400 });
+    return new Response(JSON.stringify({ message: 'ID de producto requerido' }), { 
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
-  // Consulta con JOINs profundos de Supabase para obtener la jerarquía completa
+  // Convertimos el ID a número ya que en tu DB es "integer"
+  const numericId = parseInt(id, 10);
+
+  if (isNaN(numericId)) {
+    return new Response(JSON.stringify({ message: 'El ID debe ser un número válido' }), { 
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Consulta con los nombres reales de tus tablas: products -> physical_spaces -> zones -> campuses
   const { data: product, error } = await supabase
     .from('products')
     .select(`
@@ -16,20 +29,35 @@ export const GET: APIRoute = async ({ params }) => {
       name,
       sku,
       stock,
-      categories ( name ),
-      spaces (
+      description,
+      categories (
+        id,
+        name
+      ),
+      physical_spaces!products_space_id_fkey (
+        id,
         name,
-        zones (
+        type,
+        responsible_name,
+        zones!physical_spaces_zone_id_fkey (
+          id,
           name,
-          campuses ( name )
+          campuses!zones_campus_id_fkey (
+            id,
+            name
+          )
         )
       )
     `)
-    .eq('id', id)
+    .eq('id', numericId)
     .single();
 
   if (error || !product) {
-    return new Response('Producto no encontrado', { status: 404 });
+    console.error("Error Supabase Query:", error);
+    return new Response(JSON.stringify({ message: 'Producto no encontrado' }), { 
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   return new Response(JSON.stringify(product), {
